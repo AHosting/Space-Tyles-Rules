@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "general/basic-test",
+  "version": 1,
+  "minEngine": 1,
+  "name": "🧪 Basic Test (Math Preset)",
+  "description": "A trivial prompt (47 × 83) to check that the extension can open an AI tab, send a prompt and read the answer back.",
+  "author": "Context Hypervisor",
+  "domains": [
+    "*"
+  ],
+  "tags": [
+    "test",
+    "utility"
+  ],
+  "text": [
+    "Basic Test: Please calculate 47 multiplied by 83 and show the step-by-step result and final product."
+  ]
+}

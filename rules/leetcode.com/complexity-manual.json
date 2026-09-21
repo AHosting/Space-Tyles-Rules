@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "id": "leetcode.com/complexity-manual",
+  "version": 1,
+  "minEngine": 1,
+  "name": "✍️ Complexity & Optimality Check (manual entry)",
+  "description": "Enter the problem name, number, description and your code yourself (or pick them from the page) instead of reading them automatically. Choose a brief or explained answer.",
+  "author": "Context Hypervisor",
+  "domains": [
+    "leetcode.com"
+  ],
+  "tags": [
+    "leetcode",
+    "complexity",
+    "interview"
+  ],
+  "inputs": [
+    {
+      "key": "title",
+      "label": "Problem name",
+      "type": "text",
+      "placeholder": "e.g. 132 Pattern"
+    },
+    {
+      "key": "number",
+      "label": "Problem number",
+      "type": "text",
+      "placeholder": "e.g. 456"
+    },
+    {
+      "key": "description",
+      "label": "Problem description (include the constraints)",
+      "type": "textarea",
+      "rows": 5,
+      "placeholder": "Paste the problem statement here"
+    },
+    {
+      "key": "code",
+      "label": "Your code",
+      "type": "textarea",
+      "rows": 9,
+      "required": true,
+      "placeholder": "Paste your solution here"
+    },
+    {
+      "key": "style",
+      "label": "Answer style",
+      "type": "select",
+      "default": "brief",
+      "options": [
+        {
+          "value": "brief",
+          "label": "Brief - just the two complexities"
+        },
+        {
+          "value": "detailed",
+          "label": "With explanation"
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "title": {
+      "hidden": true,
+      "transform": "trim",
+      "sources": [
+        {
+          "from": "input",
+          "name": "title"
+        }
+      ]
+    },
+    "number": {
+      "hidden": true,
+      "sources": [
+        {
+          "from": "input",
+          "name": "number",
+          "regex": "(\\d+)"
+        }
+      ]
+    },
+    "description": {
+      "hidden": true,
+      "transform": "trim",
+      "maxChars": 12000,
+      "sources": [
+        {
+          "from": "input",
+          "name": "description"
+        }
+      ]
+    },
+    "code": {
+      "hidden": true,
+      "transform": "stripLineNumbers",
+      "maxChars": 10000,
+      "sources": [
+        {
+          "from": "input",
+          "name": "code"
+        }
+      ]
+    },
+    "style": {
+      "hidden": true,
+      "map": {
+        "brief": "Answer in exactly this format and nothing else. No explanation, no extra text:\nTime complexity of my code: O(...)\nBest achievable time complexity for this problem, given the constraints above: O(...)",
+        "detailed": "Please answer:\n1. What are the time and space complexity of my code? Give a short justification.\n2. Given the constraints above, what is the best achievable time complexity for this problem, and does my solution match it?\n3. If it is not optimal, describe the optimal approach and the key idea (no full code unless I ask)."
+      },
+      "sources": [
+        {
+          "from": "input",
+          "name": "style"
+        }
+      ]
+    },
+    "problem_header": {
+      "sources": [
+        {
+          "from": "format",
+          "template": "{{title}} (LeetCode #{{number}})"
+        },
+        {
+          "from": "var",
+          "name": "title"
+        },
+        {
+          "from": "format",
+          "template": "LeetCode #{{number}}"
+        },
+        {
+          "from": "literal",
+          "value": "(not provided)"
+        }
+      ]
+    },
+    "problem_details": {
+      "sources": [
+        {
+          "from": "format",
+          "template": "Problem statement:\n{{description}}"
+        },
+        {
+          "from": "literal",
+          "value": "(No problem statement provided.)"
+        }
+      ]
+    },
+    "code_block": {
+      "sources": [
+        {
+          "from": "format",
+          "template": "```\n{{code}}\n```"
+        }
+      ]
+    },
+    "instructions": {
+      "sources": [
+        {
+          "from": "var",
+          "name": "style"
+        },
+        {
+          "from": "literal",
+          "value": "Answer in exactly this format and nothing else. No explanation, no extra text:\nTime complexity of my code: O(...)\nBest achievable time complexity for this problem, given the constraints above: O(...)"
+        }
+      ]
+    }
+  },
+  "text": [
+    "Problem: {{problem_header}}",
+    "",
+    "{{problem_details}}",
+    "",
+    "My submission:",
+    "{{code_block}}",
+    "",
+    "{{instructions}}"
+  ]
+}

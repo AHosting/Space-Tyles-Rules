@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Context Hypervisor Rules</title>
+<style>
+  :root { --bg:#0b1120; --card:#111a2e; --line:#26324a; --text:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f8fafc; --card:#fff; --line:#dbe3ee; --text:#0f172a; --muted:#475569; --accent:#0369a1; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { margin: 0 0 4px; font-size: 26px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .box { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+  .box code { word-break: break-all; }
+  input[type=search] { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--text); font-size:15px; margin-bottom:16px; }
+  .rule { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  .rule h2 { margin: 0 0 4px; font-size: 17px; }
+  .rule p { margin: 4px 0 10px; color: var(--muted); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .chip { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+  .chip.site { color: var(--accent); border-color: var(--accent); }
+  a { color: var(--accent); }
+  button { cursor:pointer; padding:4px 10px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); }
+  .empty, .err { color: var(--muted); padding: 24px 0; text-align:center; }
+  .err { color: #f87171; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Context Hypervisor Rules</h1>
+  <p class="sub">Rules for the Context Hypervisor Chrome extension. Rules are data, not code, and every one is reviewed before it is published.</p>
+  <div class="box">
+    <strong>Use these rules in the extension</strong>
+    <ol>
+      <li>Open the extension's <em>Rule Library</em>.</li>
+      <li>If it asks for a registry address, paste this one: <code id="registry-url"></code> <button id="copy">Copy</button></li>
+      <li>Pick a rule and click <em>Install</em>. You will see exactly what it reads and sends before it is saved.</li>
+    </ol>
+  </div>
+  <input id="q" type="search" placeholder="Search rules or sites, e.g. leetcode" aria-label="Search rules">
+  <div id="list"><p class="empty">Loading…</p></div>
+</main>
+<script>
+(async () => {
+  const indexUrl = new URL("index.json", location.href).href;
+  document.getElementById("registry-url").textContent = indexUrl;
+  document.getElementById("copy").onclick = () => navigator.clipboard.writeText(indexUrl);
+  const list = document.getElementById("list");
+  let rules = [];
+  try {
+    rules = (await (await fetch(indexUrl, { cache: "no-cache" })).json()).rules;
+  } catch (e) {
+    list.innerHTML = '<p class="err">Could not load the catalogue.</p>';
+    return;
+  }
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const render = (term) => {
+    const t = term.trim().toLowerCase();
+    const shown = rules.filter(r => !t || [r.name, r.description, r.id, ...r.domains, ...r.tags].join(" ").toLowerCase().includes(t));
+    list.innerHTML = shown.length ? shown.map(r => `
+      <article class="rule">
+        <h2>${esc(r.name)}</h2>
+        <p>${esc(r.description)}</p>
+        <div class="chips">
+          ${r.domains.map(d => `<span class="chip site">${d === "*" ? "every site" : esc(d)}</span>`).join("")}
+          ${r.tags.map(x => `<span class="chip">${esc(x)}</span>`).join("")}
+          <span class="chip">v${r.version}</span>
+          <a href="${esc(r.path)}">view rule</a>
+        </div>
+      </article>`).join("") : '<p class="empty">No rules match.</p>';
+  };
+  render("");
+  document.getElementById("q").oninput = (e) => render(e.target.value);
+})();
+</script>
+</body>
+</html>

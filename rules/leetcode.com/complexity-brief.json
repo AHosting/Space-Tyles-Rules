@@ -1,0 +1,332 @@
+{
+  "schemaVersion": 1,
+  "id": "leetcode.com/complexity-brief",
+  "version": 1,
+  "minEngine": 1,
+  "name": "🧮 Complexity & Optimality Check",
+  "description": "Reads your LeetCode submission page and asks the AI for just two things: your code's time complexity and the best achievable one. No explanation.",
+  "author": "Context Hypervisor",
+  "domains": [
+    "leetcode.com"
+  ],
+  "tags": [
+    "leetcode",
+    "complexity",
+    "interview"
+  ],
+  "match": {
+    "pathRegex": "^/(problems/[^/]+/)?submissions/detail/\\d+",
+    "hint": "Open one of your submissions (leetcode.com/submissions/detail/<id>) to use this rule."
+  },
+  "requests": {
+    "submission": {
+      "query": [
+        "query submissionDetails($submissionId: Int!) { submissionDetails(submissionId: $submissionId) { code lang { name verboseName } question { titleSlug } } }",
+        "query submissionDetails($submissionId: Int!) { submissionDetails(submissionId: $submissionId) { code question { titleSlug } } }"
+      ],
+      "variables": {
+        "submissionId": "{{submission_id}}"
+      },
+      "numericVars": [
+        "submissionId"
+      ]
+    },
+    "stats": {
+      "query": "query submissionDetails($submissionId: Int!) { submissionDetails(submissionId: $submissionId) { statusCode runtimeDisplay runtimePercentile memoryDisplay memoryPercentile } }",
+      "variables": {
+        "submissionId": "{{submission_id}}"
+      },
+      "numericVars": [
+        "submissionId"
+      ]
+    },
+    "question": {
+      "query": "query questionData($titleSlug: String!) { question(titleSlug: $titleSlug) { questionFrontendId title difficulty content } }",
+      "variables": {
+        "titleSlug": "{{title_slug}}"
+      }
+    }
+  },
+  "variables": {
+    "submission_id": {
+      "hidden": true,
+      "sources": [
+        {
+          "from": "url",
+          "regex": "/submissions/detail/(\\d+)"
+        }
+      ]
+    },
+    "code": {
+      "hidden": true,
+      "transform": "stripLineNumbers",
+      "maxChars": 10000,
+      "sources": [
+        {
+          "from": "graphql",
+          "request": "submission",
+          "path": "data.submissionDetails.code"
+        },
+        {
+          "from": "css",
+          "selector": "pre code, pre"
+        }
+      ]
+    },
+    "language": {
+      "hidden": true,
+      "sources": [
+        {
+          "from": "graphql",
+          "request": "submission",
+          "path": "data.submissionDetails.lang.verboseName"
+        },
+        {
+          "from": "graphql",
+          "request": "submission",
+          "path": "data.submissionDetails.lang.name"
+        },
+        {
+          "from": "css",
+          "selector": "body",
+          "regex": "\\bCode\\s+\\|?\\s*([A-Za-z][\\w+#]*)"
+        }
+      ]
+    },
+    "title_slug": {
+      "hidden": true,
+      "sources": [
+        {
+          "from": "graphql",
+          "request": "submission",
+          "path": "data.submissionDetails.question.titleSlug"
+        },
+        {
+          "from": "url",
+          "regex": "/problems/([^/]+)/"
+        }
+      ]
+    },
+    "title_from_slug": {
+      "hidden": true,
+      "transform": "slugToTitle",
+      "sources": [
+        {
+          "from": "var",
+          "name": "title_slug"
+        }
+      ]
+    },
+    "title": {
+      "hidden": true,
+      "transform": "trim",
+      "sources": [
+        {
+          "from": "graphql",
+          "request": "question",
+          "path": "data.question.title"
+        },
+        {
+          "from": "css",
+          "selector": "body",
+          "regex": "Submissions?\\s+Detail\\s*[^\\w\\s]?\\s*([^\\n]+)"
+        },
+        {
+          "from": "var",
+          "name": "title_from_slug"
+        }
+      ]
+    },
+    "number": {
+      "hidden": true,
+      "sources": [
+        {
+          "from": "graphql",
+          "request": "question",
+          "path": "data.question.questionFrontendId"
+        }
+      ]
+    },
+    "difficulty": {
+      "hidden": true,
+      "sources": [
+        {
+          "from": "graphql",
+          "request": "question",
+          "path": "data.question.difficulty"
+        }
+      ]
+    },
+    "question_text": {
+      "hidden": true,
+      "transform": "htmlToText",
+      "sources": [
+        {
+          "from": "graphql",
+          "request": "question",
+          "path": "data.question.content"
+        }
+      ]
+    },
+    "statement": {
+      "hidden": true,
+      "maxChars": 1500,
+      "sources": [
+        {
+          "from": "var",
+          "name": "question_text",
+          "regex": "^([\\s\\S]*?)\\s*Example\\s*1\\s*:"
+        },
+        {
+          "from": "var",
+          "name": "question_text"
+        }
+      ]
+    },
+    "constraints": {
+      "hidden": true,
+      "maxChars": 1200,
+      "sources": [
+        {
+          "from": "var",
+          "name": "question_text",
+          "regex": "(Constraints:[\\s\\S]*)$"
+        }
+      ]
+    },
+    "status": {
+      "hidden": true,
+      "map": {
+        "10": "Accepted",
+        "11": "Wrong Answer",
+        "12": "Memory Limit Exceeded",
+        "13": "Output Limit Exceeded",
+        "14": "Time Limit Exceeded",
+        "15": "Runtime Error",
+        "16": "Internal Error",
+        "20": "Compile Error"
+      },
+      "sources": [
+        {
+          "from": "graphql",
+          "request": "stats",
+          "path": "data.submissionDetails.statusCode"
+        }
+      ]
+    },
+    "runtime": {
+      "hidden": true,
+      "sources": [
+        {
+          "from": "graphql",
+          "request": "stats",
+          "path": "data.submissionDetails.runtimeDisplay"
+        }
+      ]
+    },
+    "runtime_pct": {
+      "hidden": true,
+      "transform": "round2",
+      "sources": [
+        {
+          "from": "graphql",
+          "request": "stats",
+          "path": "data.submissionDetails.runtimePercentile"
+        }
+      ]
+    },
+    "memory": {
+      "hidden": true,
+      "sources": [
+        {
+          "from": "graphql",
+          "request": "stats",
+          "path": "data.submissionDetails.memoryDisplay"
+        }
+      ]
+    },
+    "memory_pct": {
+      "hidden": true,
+      "transform": "round2",
+      "sources": [
+        {
+          "from": "graphql",
+          "request": "stats",
+          "path": "data.submissionDetails.memoryPercentile"
+        }
+      ]
+    },
+    "problem_header": {
+      "sources": [
+        {
+          "from": "format",
+          "template": "{{title}} (LeetCode #{{number}}, {{difficulty}})"
+        },
+        {
+          "from": "var",
+          "name": "title"
+        }
+      ]
+    },
+    "problem_details": {
+      "sources": [
+        {
+          "from": "format",
+          "template": "Problem statement (trimmed):\n{{statement}}\n\n{{constraints}}"
+        },
+        {
+          "from": "format",
+          "template": "Problem statement (trimmed):\n{{statement}}"
+        },
+        {
+          "from": "format",
+          "template": "{{constraints}}"
+        }
+      ]
+    },
+    "submission_header": {
+      "sources": [
+        {
+          "from": "format",
+          "template": "My submission ({{language}} · {{status}} · runtime {{runtime}}, beats {{runtime_pct}}% · memory {{memory}}, beats {{memory_pct}}%):"
+        },
+        {
+          "from": "format",
+          "template": "My submission ({{language}} · {{status}}):"
+        },
+        {
+          "from": "format",
+          "template": "My submission ({{language}}):"
+        },
+        {
+          "from": "literal",
+          "value": "My submission:"
+        }
+      ]
+    },
+    "code_block": {
+      "sources": [
+        {
+          "from": "format",
+          "template": "```{{language}}\n{{code}}\n```"
+        },
+        {
+          "from": "format",
+          "template": "```\n{{code}}\n```"
+        }
+      ]
+    }
+  },
+  "text": [
+    "Problem: {{problem_header}}",
+    "",
+    "{{problem_details}}",
+    "",
+    "{{submission_header}}",
+    "{{code_block}}",
+    "",
+    "Answer in exactly this format and nothing else. No explanation, no extra text:",
+    "Time complexity of my code: O(...)",
+    "Best achievable time complexity for this problem, given the constraints above: O(...)"
+  ]
+}
