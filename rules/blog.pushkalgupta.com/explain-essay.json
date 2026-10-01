@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "blog.pushkalgupta.com/explain-essay",
-  "version": 1,
-  "minEngine": 2,
+  "version": 2,
+  "minEngine": 3,
   "name": "Explain this blog post",
   "description": "Reads a PG.Blog essay and hands it to the AI with instructions to build the argument rather than summarise it: in order, in your vocabulary, with the examples intact, and with honest pushback at the end.",
   "author": "you",
@@ -14,13 +14,15 @@
     "essay",
     "argument"
   ],
-  "match": {
-    "pathRegex": "^/[a-z0-9-]{4,}/",
-    "hint": "This reads a single essay page such as /ai-and-the-lions-cage/. On the blog's own ?post= reader the essay sits in an iframe, which an extension cannot see into — open the essay's own address, or paste the text in below."
-  },
   "variables": {
     "essayUrl": {
       "sources": [
+        {
+          "from": "css",
+          "selector": "link[rel=\"canonical\"]",
+          "attr": "href",
+          "frames": true
+        },
         {
           "from": "css",
           "selector": "link[rel=\"canonical\"]",
@@ -47,7 +49,8 @@
         {
           "from": "css",
           "selector": "meta[property=\"og:title\"]",
-          "attr": "content"
+          "attr": "content",
+          "frames": true
         },
         {
           "from": "css",
@@ -64,6 +67,12 @@
     },
     "author": {
       "sources": [
+        {
+          "from": "css",
+          "selector": "meta[name=\"author\"]",
+          "attr": "content",
+          "frames": true
+        },
         {
           "from": "css",
           "selector": "meta[name=\"author\"]",
@@ -86,6 +95,12 @@
         {
           "from": "css",
           "selector": "meta[property=\"article:published_time\"]",
+          "attr": "content",
+          "frames": true
+        },
+        {
+          "from": "css",
+          "selector": "meta[property=\"article:published_time\"]",
           "attr": "content"
         },
         {
@@ -99,15 +114,16 @@
       "sources": [
         {
           "from": "css",
+          "selector": ".wrap",
+          "frames": true
+        },
+        {
+          "from": "css",
           "selector": ".wrap"
         },
         {
           "from": "css",
           "selector": "article"
-        },
-        {
-          "from": "css",
-          "selector": "main"
         }
       ],
       "transform": "htmlToText",
@@ -117,7 +133,7 @@
         "type": "textarea",
         "rows": 14,
         "placeholder": "Paste the essay text",
-        "hint": "On the blog's ?post= reader the essay is inside an iframe and cannot be read from here. Open the essay's own address instead, or use the page's own \"Copy for LLM\" button and paste the text in here."
+        "hint": "Nothing essay-shaped on this page. Open an essay, or use the page's own \"Copy for LLM\" button and paste the text in here."
       }
     }
   },
