@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "id": "thepghub.com/review-attempt",
+  "version": 1,
+  "minEngine": 2,
+  "name": "Review my attempt",
+  "description": "Reads the problem and the code in your PG.Hub editor and reviews what you actually wrote: complexity, correctness and whether a better approach exists. Asks for anything it cannot read.",
+  "author": "you",
+  "domains": [
+    "thepghub.com"
+  ],
+  "tags": [
+    "code",
+    "complexity",
+    "review"
+  ],
+  "match": {
+    "pathRegex": "^/category/[^/]+/[^/]+",
+    "hint": "Open a PG.Hub problem workspace. Anywhere else, paste the problem and your code in below."
+  },
+  "inputs": [
+    {
+      "key": "depth",
+      "label": "Answer style",
+      "type": "select",
+      "default": "brief",
+      "options": [
+        {
+          "value": "brief",
+          "label": "Brief - complexity and the one thing to fix"
+        },
+        {
+          "value": "detailed",
+          "label": "Detailed - walk through my code"
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "slug": {
+      "hidden": true,
+      "sources": [
+        {
+          "from": "url",
+          "regex": "/category/[^/]+/([a-z0-9-]+)"
+        }
+      ],
+      "transform": "slugToTitle"
+    },
+    "topic": {
+      "sources": [
+        {
+          "from": "url",
+          "regex": "/category/([a-z0-9-]+)"
+        },
+        {
+          "from": "literal",
+          "value": "unknown"
+        }
+      ],
+      "transform": "slugToTitle"
+    },
+    "title": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": "h1.ws-q-title"
+        },
+        {
+          "from": "var",
+          "name": "slug"
+        }
+      ],
+      "maxChars": 200,
+      "fallback": {
+        "label": "Problem title",
+        "type": "text",
+        "placeholder": "Connected Components in an Undirected Graph"
+      }
+    },
+    "difficulty": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": ".ws-diff-badge"
+        },
+        {
+          "from": "literal",
+          "value": "not shown"
+        }
+      ],
+      "maxChars": 40
+    },
+    "statement": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": ".ws-q-desc"
+        },
+        {
+          "from": "css",
+          "selector": ".ws-question"
+        },
+        {
+          "from": "css",
+          "selector": ".ws-left-content"
+        }
+      ],
+      "transform": "htmlToText",
+      "maxChars": 6000,
+      "fallback": {
+        "label": "Problem statement",
+        "type": "textarea",
+        "rows": 6,
+        "placeholder": "Paste the statement",
+        "hint": "Only the open tab is in the page, so switch to Description, or select the text and press Use selection."
+      }
+    },
+    "examples": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": ".ws-examples"
+        },
+        {
+          "from": "literal",
+          "value": "(none shown on this page)"
+        }
+      ],
+      "transform": "htmlToText",
+      "maxChars": 3000
+    },
+    "constraints": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": ".ws-constraints"
+        },
+        {
+          "from": "literal",
+          "value": "(none shown on this page)"
+        }
+      ],
+      "transform": "htmlToText",
+      "maxChars": 1500
+    },
+    "code": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": ".monaco-editor .view-lines"
+        },
+        {
+          "from": "css",
+          "selector": ".ws-editor-area pre"
+        }
+      ],
+      "transform": "stripLineNumbers",
+      "maxChars": 8000,
+      "fallback": {
+        "label": "Your code",
+        "type": "textarea",
+        "rows": 12,
+        "placeholder": "Paste your solution",
+        "hint": "The editor only keeps the visible lines in the page, so long files read short. Select all in the editor and copy, or press Use selection."
+      }
+    },
+    "style": {
+      "sources": [
+        {
+          "from": "input",
+          "name": "depth"
+        }
+      ],
+      "map": {
+        "brief": "Give the time and space complexity in two lines, then the single most important thing to fix or improve.",
+        "detailed": "Walk through the code: the loops, the data structures and the invariants. Then give the time and space complexity, and say whether a better bound is reachable."
+      }
+    }
+  },
+  "text": [
+    "I am working on a programming problem and I want you to review the code I have written for it.",
+    "",
+    "### PROBLEM",
+    "{{title}} — {{topic}}, level: {{difficulty}}",
+    "",
+    "{{statement}}",
+    "",
+    "### WORKED EXAMPLES",
+    "{{examples}}",
+    "",
+    "### CONSTRAINTS",
+    "{{constraints}}",
+    "",
+    "### MY CODE",
+    "{{code}}",
+    "",
+    "### WHAT I WANT",
+    "{{style}}",
+    "",
+    "This is my own code as it stands in my editor, not a model answer. Work with it: tell me what is wrong with THIS, rather than replacing it with a textbook solution, unless I ask for a different approach. If it is already correct and optimal, say so plainly instead of inventing something to change."
+  ]
+}

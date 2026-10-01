@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "id": "thepghub.com/explain-no-spoiler",
+  "version": 1,
+  "minEngine": 2,
+  "name": "Explain it without the answer",
+  "description": "Reads a PG.Hub problem and explains what it is really asking, what to notice and which technique it belongs to — stopping short of the solution. Useful before you start rather than after you are stuck.",
+  "author": "you",
+  "domains": [
+    "thepghub.com"
+  ],
+  "tags": [
+    "learning",
+    "hints"
+  ],
+  "match": {
+    "pathRegex": "^/category/[^/]+/[^/]+",
+    "hint": "Open a PG.Hub problem workspace. Anywhere else, paste the statement in below."
+  },
+  "inputs": [
+    {
+      "key": "stuck",
+      "label": "How far have you got?",
+      "type": "select",
+      "default": "fresh",
+      "options": [
+        {
+          "value": "fresh",
+          "label": "Just opened it"
+        },
+        {
+          "value": "idea",
+          "label": "I have an idea but no code"
+        },
+        {
+          "value": "stuck",
+          "label": "I am stuck part way in"
+        }
+      ]
+    },
+    {
+      "key": "thinking",
+      "label": "What are you thinking so far? (optional)",
+      "type": "textarea",
+      "rows": 3,
+      "placeholder": "Even a half-formed idea changes the answer you get"
+    }
+  ],
+  "variables": {
+    "slug": {
+      "hidden": true,
+      "sources": [
+        {
+          "from": "url",
+          "regex": "/category/[^/]+/([a-z0-9-]+)"
+        }
+      ],
+      "transform": "slugToTitle"
+    },
+    "topic": {
+      "sources": [
+        {
+          "from": "url",
+          "regex": "/category/([a-z0-9-]+)"
+        },
+        {
+          "from": "literal",
+          "value": "unknown"
+        }
+      ],
+      "transform": "slugToTitle"
+    },
+    "title": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": "h1.ws-q-title"
+        },
+        {
+          "from": "var",
+          "name": "slug"
+        }
+      ],
+      "maxChars": 200,
+      "fallback": {
+        "label": "Problem title",
+        "type": "text"
+      }
+    },
+    "difficulty": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": ".ws-diff-badge"
+        },
+        {
+          "from": "literal",
+          "value": "not shown"
+        }
+      ],
+      "maxChars": 40
+    },
+    "statement": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": ".ws-q-desc"
+        },
+        {
+          "from": "css",
+          "selector": ".ws-question"
+        },
+        {
+          "from": "css",
+          "selector": ".ws-left-content"
+        }
+      ],
+      "transform": "htmlToText",
+      "maxChars": 6000,
+      "fallback": {
+        "label": "Problem statement",
+        "type": "textarea",
+        "rows": 6,
+        "placeholder": "Paste the statement",
+        "hint": "Only the open tab is in the page, so switch to Description, or select the text and press Use selection."
+      }
+    },
+    "examples": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": ".ws-examples"
+        },
+        {
+          "from": "literal",
+          "value": "(none shown on this page)"
+        }
+      ],
+      "transform": "htmlToText",
+      "maxChars": 3000
+    },
+    "mine": {
+      "sources": [
+        {
+          "from": "input",
+          "name": "thinking"
+        },
+        {
+          "from": "literal",
+          "value": "(nothing yet)"
+        }
+      ],
+      "maxChars": 2000
+    },
+    "stage": {
+      "sources": [
+        {
+          "from": "input",
+          "name": "stuck"
+        }
+      ],
+      "map": {
+        "fresh": "I have just opened this. Start from what the problem is actually asking.",
+        "idea": "I have an idea but have written no code. Tell me whether the idea holds up.",
+        "stuck": "I am stuck part way in. Find the step I am missing."
+      }
+    }
+  },
+  "text": [
+    "I am about to attempt a programming problem and I want to understand it properly first. Do not give me the solution.",
+    "",
+    "### PROBLEM",
+    "{{title}} — {{topic}}, level: {{difficulty}}",
+    "",
+    "{{statement}}",
+    "",
+    "### WORKED EXAMPLES",
+    "{{examples}}",
+    "",
+    "### WHERE I AM",
+    "{{stage}}",
+    "",
+    "My thinking so far: {{mine}}",
+    "",
+    "### WHAT I WANT",
+    "1. Restate what the problem is asking in two or three sentences, as if to someone who read it too fast.",
+    "2. Name the one observation that makes it tractable, without saying what to do with it.",
+    "3. Name the family of techniques it belongs to, and why this problem has that shape.",
+    "4. Tell me the case I am most likely to get wrong.",
+    "",
+    "Stop there. No algorithm, no pseudocode, no code, no complexity analysis. If my thinking above is already on the right track, say which part of it is right and which part will not survive — that is more useful to me than a fresh explanation."
+  ]
+}

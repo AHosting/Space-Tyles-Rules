@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "id": "leetcode.com/complexity-check",
+  "version": 1,
+  "minEngine": 2,
+  "name": "Complexity & optimality check",
+  "description": "Works out the time and space complexity of a solution and says whether it is optimal. Reads the problem and your code off LeetCode; asks for them anywhere else.",
+  "author": "you",
+  "domains": [
+    "leetcode.com"
+  ],
+  "tags": [
+    "code",
+    "complexity"
+  ],
+  "match": {
+    "pathRegex": "^/problems/",
+    "hint": "Written for a LeetCode problem page. Anywhere else, paste the problem and the code in below."
+  },
+  "inputs": [
+    {
+      "key": "depth",
+      "label": "Answer style",
+      "type": "select",
+      "default": "brief",
+      "options": [
+        {
+          "value": "brief",
+          "label": "Brief - just the two complexities"
+        },
+        {
+          "value": "detailed",
+          "label": "Detailed - walk through the reasoning"
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "problem": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": "div[data-track-load=description_content]"
+        },
+        {
+          "from": "css",
+          "selector": ".question-content, .elfjS"
+        }
+      ],
+      "transform": "htmlToText",
+      "maxChars": 6000,
+      "fallback": {
+        "label": "Problem description",
+        "type": "textarea",
+        "rows": 6,
+        "placeholder": "Paste the problem statement",
+        "hint": "Select it on the page and press Use selection, or paste it."
+      }
+    },
+    "code": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": ".view-lines"
+        },
+        {
+          "from": "css",
+          "selector": "pre code"
+        }
+      ],
+      "transform": "stripLineNumbers",
+      "maxChars": 8000,
+      "fallback": {
+        "label": "Your code",
+        "type": "textarea",
+        "rows": 10,
+        "placeholder": "Paste your solution"
+      }
+    },
+    "style": {
+      "sources": [
+        {
+          "from": "input",
+          "name": "depth"
+        }
+      ],
+      "map": {
+        "brief": "Answer in two lines: the time complexity and the space complexity, with one clause of justification each.",
+        "detailed": "Walk through the loops and the data structures, then give the time and space complexity and say whether a better bound exists."
+      }
+    }
+  },
+  "text": [
+    "You are reviewing a solution to a programming problem.",
+    "",
+    "### PROBLEM",
+    "{{problem}}",
+    "",
+    "### CODE",
+    "{{code}}",
+    "",
+    "### WHAT I WANT",
+    "{{style}}",
+    "Then say whether this is the optimal approach, and if not, name the one that is."
+  ]
+}
