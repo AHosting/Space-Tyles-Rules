@@ -4,10 +4,14 @@
 // A rule with a `variables` map is resolved into { name: text } values that fill
 // the {{placeholders}} in the rule's prompt template.
 //
-// variable  = { sources: [source, ...], transform?, map?, maxChars?, hidden? }
+// variable  = { sources: [source, ...], transform?, map?, maxChars?, hidden?, fallback? }
 //   - sources are tried in order; the first non-empty result wins.
 //   - hidden variables are helpers: usable by other variables, never sent or reported.
 //   - variables resolve on demand, so declaration order does not matter (chrome.storage reorders keys).
+//   - fallback { label, type?, rows?, placeholder?, hint? } makes the variable degrade instead of failing:
+//     when no source produced anything, it is reported in `needed` and the panel asks for it by hand. One
+//     stale selector then costs one paste box rather than the whole rule, and a rule whose every visible
+//     variable can fall back works on any site (see isPortable).
 // source    = { from: "url" | "css" | "graphql" | "var" | "format" | "literal", regex?, ... }
 //   url     { regex }                       regex over location.href (capture group 1)
 //   css     { selector, attr?, regex? }     text (or attribute) of matching elements
@@ -24,14 +28,35 @@
 (function (root) {
   // Bumped when the engine gains a capability rules can rely on. Rules declare `minEngine`; an extension whose
   // engine is older than that must not run (or install) the rule.
-  const ENGINE_VERSION = 1;
+  //   2 - variables may declare a `fallback`, so a rule can be written to survive a selector going stale.
+  const ENGINE_VERSION = 2;
+
+  // Sources that read the page the user is on. A variable built only from these is tied to one site; one with
+  // a fallback is not, because it can be filled in by hand anywhere. Reading the URL counts: a rule that pulls
+  // an id out of the address depends on the shape of that site's addresses, whatever its `domains` say.
+  const PAGE_SOURCES = ["css", "url", "graphql"];
 
   // Rules can come from a public registry, so the engine enforces its own limits regardless of what a rule says.
+  //
+  // maxVariableChars is the ceiling on one extracted value, raised to 500,000 so a whole long-form essay can be
+  // carried in one variable -- a 7,000-word piece reads as about 47,000 characters, and the old 50,000 ceiling
+  // was close enough to truncate a longer one. defaultVariableChars is deliberately left at 20,000: a rule only
+  // gets the big ceiling by asking for it with maxChars, so nothing already installed grows its prompts.
+  //
+  // What still bounds things, because this limit no longer does:
+  //   - maxRegexInput caps what a REGEX is run over, not what a source may return. A regex cannot be
+  //     interrupted once started, so that bound stays at 300,000: a source combining a regex with a value
+  //     larger than that matches against the first 300,000 characters only.
+  //   - usage.js truncates a stored transcript to 20,000 characters per field, and deferrals.js to 16,000, so
+  //     neither store can be filled by one large prompt.
+  //   - The engine a prompt is run on is now the real constraint. 500,000 characters is roughly 125,000
+  //     tokens, which an API call will accept and charge for, and which pasting into a logged-in chat tab
+  //     will almost certainly not survive.
   const LIMITS = {
     maxRegexLength: 300,
     maxRegexInput: 300000,
     defaultVariableChars: 20000,
-    maxVariableChars: 50000,
+    maxVariableChars: 500000,
     maxQueryLength: 20000,
     maxRuleBytes: 60000
   };
@@ -156,6 +181,18 @@
     return out;
   }
 
+  // A value typed or pasted by the user is already text, so two of the conversions must not run on it:
+  // htmlToText would strip anything that looks like a tag out of pasted code, and `map` would blank the value
+  // whenever it is not one of the enumerated keys, silently making the fallback useless. The length cap and
+  // the text-tidying transforms still apply -- stripLineNumbers in particular, since code pasted out of a
+  // rendered editor arrives with the gutter attached.
+  function postProcessManual(value, spec, env) {
+    const text = Object.assign({}, spec);
+    if (text.transform === "htmlToText") delete text.transform;
+    delete text.map;
+    return postProcess(value, text, env);
+  }
+
   function csrfToken(env) {
     const m = /(?:^|;\s*)csrftoken=([^;]+)/.exec(env.document.cookie || "");
     return m ? decodeURIComponent(m[1]) : "";
@@ -256,22 +293,38 @@
   }
 
   // Resolve every variable of `rule`. Never throws; problems are reported in the result.
-  //   values  - visible variables that resolved to text (what gets sent to the prompt)
-  //   found   - names of those variables
-  //   missing - visible variables that resolved to nothing
-  //   errors  - source-level failures (e.g. a GraphQL request that failed)
-  //   warning - set when the rule does not apply to the current page
+  //   values   - visible variables that resolved to text (what gets sent to the prompt)
+  //   found    - names of those variables
+  //   missing  - visible variables that resolved to nothing
+  //   needed   - the subset of `missing` the user can supply by hand, with the field to show for each
+  //   supplied - visible variables that were filled from env.manual rather than from the page
+  //   errors   - source-level failures (e.g. a GraphQL request that failed)
+  //   warning  - set when the rule does not apply to the current page
+  //
+  // env.manual = { name: text } carries values the user has already typed into a fallback field.
   async function extract(rule, env) {
     env = env || defaultEnv();
-    const result = { values: {}, found: [], missing: [], errors: [], warning: "", trace: [], href: env.location.href };
+    const result = {
+      values: {}, found: [], missing: [], needed: [], supplied: [],
+      errors: [], warning: "", trace: [], href: env.location.href
+    };
     const vars = rule && rule.variables;
     if (!vars) return result;
 
     const visible = Object.keys(vars).filter(n => !vars[n].hidden);
-    if (!pathMatches(rule, env)) {
+    const fallbacks = visible.filter(n => vars[n].fallback);
+
+    // The rule was not written for this page. Before fallbacks existed that was the end of it; now, if the
+    // rule can be filled in by hand, we carry on with the page sources switched off -- which is what makes a
+    // rule usable away from the site it was written for. Page sources are skipped rather than attempted so a
+    // foreign page is not pointlessly queried or POSTed to.
+    const offPage = !pathMatches(rule, env);
+    if (offPage) {
       result.warning = (rule.match && rule.match.hint) || "This rule is not designed for the current page.";
-      result.missing = visible;
-      return result;
+      if (!fallbacks.length) {
+        result.missing = visible;
+        return result;
+      }
     }
 
     // Variables are resolved on demand: a variable that needs another one (via var/format/a request's variables)
@@ -280,6 +333,7 @@
     const cache = {};
     const active = new Set();
     const seenErrors = new Set();
+    const manualNames = new Set();
     const scope = { ctx, get: getVar };
 
     async function getVar(name) {
@@ -289,9 +343,14 @@
       active.add(name);
       try {
         let value = "";
+        let manual = false;
         const attempts = [];
         for (const src of spec.sources || []) {
           const label = `${src.from}${src.request || src.selector || src.name ? ":" + (src.request || src.selector || src.name) : ""}`;
+          if (offPage && PAGE_SOURCES.includes(src.from)) {
+            attempts.push(`${label} skipped (other site)`);
+            continue;
+          }
           try {
             value = toText(await resolveSource(src, scope, rule, env, cache));
             attempts.push(`${label} ${value.trim() ? value.length + " chars" : "empty"}`);
@@ -306,9 +365,58 @@
           }
           if (value.trim()) break;
         }
-        value = postProcess(value, spec, env);
+
+        const failed = (what, e) => {
+          const msg = `${name}: ${what} failed: ${e.message}`;
+          if (!seenErrors.has(msg)) {
+            seenErrors.add(msg);
+            result.errors.push(msg);
+          }
+          attempts.push("transform error");
+        };
+
+        // POST-PROCESSING COMES BEFORE THE FALLBACK, so the fallback is judged on the final value rather than
+        // on whatever a source happened to return. A transform can empty a value a source filled: `map` does
+        // it deliberately when nothing matches, and a transform can do it accidentally by throwing -- which
+        // htmlToText will whenever DOMParser is unavailable. Judged the other way round, such a field was
+        // reported as needed and then ignored everything the user pasted, because the source kept succeeding
+        // and the transform kept failing on every later pass.
+        //
+        // The try also restores the contract above: a transform used to run outside any catch, so one failing
+        // transform escaped extract entirely and took every other variable with it.
+        try {
+          value = postProcess(value, spec, env);
+        } catch (e) {
+          failed(spec.transform || "post-processing", e);
+          value = "";
+        }
+
+        // Nothing survived and the rule says this one can be given by hand. A value the user has already
+        // supplied is used; otherwise the field goes into `needed` below and the panel asks for it.
+        if (!value.trim() && spec.fallback) {
+          const typed = env.manual ? env.manual[name] : "";
+          if (typed !== undefined && typed !== null && String(typed).trim()) {
+            manual = true;
+            attempts.push(`fallback ${String(typed).length} chars`);
+            try {
+              value = postProcessManual(String(typed), spec, env);
+            } catch (e) {
+              // Cannot realistically happen -- postProcessManual drops the only transform that throws -- but
+              // a pasted value must never be lost to bookkeeping, so keep it and apply just the length cap.
+              failed("post-processing a pasted value", e);
+              value = postProcess(String(typed), { maxChars: spec.maxChars }, env);
+            }
+          } else {
+            attempts.push("fallback empty");
+          }
+        }
+
+        if (manual) manualNames.add(name);
         ctx[name] = value;
-        result.trace.push({ name, hidden: !!spec.hidden, attempts, preview: value.replace(/\s+/g, " ").slice(0, 50) });
+        result.trace.push({
+          name, hidden: !!spec.hidden, manual, attempts,
+          preview: value.replace(/\s+/g, " ").slice(0, 50)
+        });
         return value;
       } finally {
         active.delete(name);
@@ -321,10 +429,25 @@
       if (ctx[name]) {
         result.values[name] = ctx[name];
         result.found.push(name);
+        if (manualNames.has(name)) result.supplied.push(name);
       } else {
         result.missing.push(name);
+        const fb = vars[name].fallback;
+        if (fb) {
+          result.needed.push({
+            name,
+            label: fb.label || name,
+            type: fb.type === "text" ? "text" : "textarea",
+            rows: Number.isInteger(fb.rows) ? fb.rows : 5,
+            placeholder: fb.placeholder || "",
+            hint: fb.hint || ""
+          });
+        }
       }
     }
+
+    // A rule that asked for nothing it could not get is not really off-page, whatever its pathRegex thinks.
+    if (offPage && !result.missing.length) result.warning = "";
     return result;
   }
 
@@ -332,6 +455,7 @@
   const SOURCE_TYPES = ["url", "css", "graphql", "var", "format", "input", "literal"];
   const TRANSFORMS = ["htmlToText", "round2", "slugToTitle", "trim", "stripLineNumbers"];
   const INPUT_TYPES = ["text", "textarea", "select"];
+  const FALLBACK_TYPES = ["text", "textarea"];
   const TOP_LEVEL_KEYS = ["schemaVersion", "id", "version", "minEngine", "name", "description", "author", "domains", "tags",
     "match", "inputs", "requests", "variables", "text"];
   const BUILTIN_TEMPLATE_VARS = ["CONTENT", "URL", "TITLE", "DOMAIN", "GLOBAL_CONTEXT", "HISTORY"];
@@ -421,6 +545,21 @@
         if (spec.transform !== undefined && !TRANSFORMS.includes(spec.transform)) err(`variables.${name}.transform must be one of ${TRANSFORMS.join(", ")}`);
         if (spec.map !== undefined && (!isObj(spec.map) || !Object.values(spec.map).every(v => typeof v === "string"))) err(`variables.${name}.map must map strings to strings`);
         if (spec.maxChars !== undefined && (!Number.isInteger(spec.maxChars) || spec.maxChars < 1)) err(`variables.${name}.maxChars must be a positive integer`);
+        if (spec.fallback !== undefined) {
+          const fb = spec.fallback;
+          if (!isObj(fb)) err(`variables.${name}.fallback must be an object`);
+          else {
+            if (typeof fb.label !== "string" || !fb.label.trim() || fb.label.length > 80) err(`variables.${name}.fallback.label is required (max 80 characters)`);
+            if (fb.type !== undefined && !FALLBACK_TYPES.includes(fb.type)) err(`variables.${name}.fallback.type must be one of ${FALLBACK_TYPES.join(", ")}`);
+            if (fb.rows !== undefined && (!Number.isInteger(fb.rows) || fb.rows < 1 || fb.rows > 30)) err(`variables.${name}.fallback.rows must be a whole number between 1 and 30`);
+            ["placeholder", "hint"].forEach(k => {
+              if (fb[k] !== undefined && (typeof fb[k] !== "string" || fb[k].length > 200)) err(`variables.${name}.fallback.${k} must be a string (max 200 characters)`);
+            });
+            // A hidden variable is a helper no one is shown, so there is no field to put in front of the user.
+            if (spec.hidden) err(`variables.${name} is hidden, so it cannot have a fallback`);
+            if (Number.isInteger(rule.minEngine) && rule.minEngine < 2) err(`variables.${name} has a fallback, so minEngine must be at least 2`);
+          }
+        }
         deps[name] = [];
         spec.sources.forEach((src, i) => {
           const where = `variables.${name}.sources[${i}]`;
@@ -467,8 +606,46 @@
     return Array.from(new Set(errors));
   }
 
+  // A rule is portable when it can be used away from the site it was written for, which is what decides
+  // whether the panel offers it on other hosts.
+  //
+  // THREE ways for a variable to qualify.
+  //
+  //   1. It never reads the page, so it is site-independent by construction: everything it sends comes from
+  //      what the user types, from literals, or from other variables. The manual-entry rules are like this,
+  //      and there is no reason they should only appear on the domains they declare -- a form asking for a
+  //      problem title and some code is as usable on a tutorial site as on the site it came from.
+  //   2. It declares a fallback, so it can be pasted in instead.
+  //   3. Its source list ends in a non-empty literal. Sources are tried in order and the first non-empty one
+  //      wins, so such a variable cannot come out empty whatever the page does -- the literal is a declared
+  //      default, not a page read. This is the shape of an optional section: try the selector, otherwise say
+  //      "(none shown on this page)". Without this case a rule was called unportable because of a variable
+  //      that was never going to fail, which is the opposite of what the flag is for.
+  //
+  // Only visible variables are examined. Hidden ones are helpers reachable only through a visible variable, so
+  // if every visible variable can be filled in by hand, nothing depends on the helpers resolving -- which is
+  // just as well, since a hidden variable is not allowed a fallback.
+  function isPortable(rule) {
+    const obj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+    if (!rule || !obj(rule.variables)) return false;
+    const visible = Object.values(rule.variables).filter(spec => obj(spec) && !spec.hidden);
+    if (!visible.length) return false;
+
+    const hasDefault = (spec) => {
+      const sources = spec.sources || [];
+      const last = sources[sources.length - 1];
+      return !!last && last.from === "literal" && typeof last.value === "string" && !!last.value.trim();
+    };
+
+    return visible.every(spec =>
+      !!spec.fallback ||
+      hasDefault(spec) ||
+      (spec.sources || []).every(src => !PAGE_SOURCES.includes(src.from))
+    );
+  }
+
   const api = {
-    extract, htmlToText, hostMatches, ruleMatchesHost, pathMatches, isCompatible,
+    extract, htmlToText, hostMatches, ruleMatchesHost, pathMatches, isCompatible, isPortable,
     validateRule, normalizeRule, isSafeRegex, isQueryOnly, ENGINE_VERSION, LIMITS
   };
   root.CHRuleEngine = api;
