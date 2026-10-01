@@ -14,7 +14,9 @@
 //     variable can fall back works on any site (see isPortable).
 // source    = { from: "url" | "css" | "graphql" | "var" | "format" | "literal", regex?, ... }
 //   url     { regex }                       regex over location.href (capture group 1)
-//   css     { selector, attr?, regex? }     text (or attribute) of matching elements
+//   css     { selector, attr?, regex?, frames? }  text (or attribute) of matching elements
+//             frames: true searches this page's same-origin iframe documents instead of the page itself,
+//             for sites that load their real content into a frame. Cross-origin frames are unreachable.
 //   graphql { request, path }               value at `path` in a same-origin request's JSON
 //   var     { name, regex? }                another variable
 //   format  { template }                    "{{a}} {{b}}"; empty if any referenced var is empty
@@ -29,7 +31,8 @@
   // Bumped when the engine gains a capability rules can rely on. Rules declare `minEngine`; an extension whose
   // engine is older than that must not run (or install) the rule.
   //   2 - variables may declare a `fallback`, so a rule can be written to survive a selector going stale.
-  const ENGINE_VERSION = 2;
+  //   3 - css sources may set `frames: true` to read same-origin iframe documents.
+  const ENGINE_VERSION = 3;
 
   // Sources that read the page the user is on. A variable built only from these is tied to one site; one with
   // a fallback is not, because it can be filled in by hand anywhere. Reading the URL counts: a rule that pulls
@@ -255,18 +258,53 @@
     return cache[name];
   }
 
+  // The documents of this page's same-origin iframes.
+  //
+  // THE ORIGIN CHECK IS THE BROWSER'S, NOT OURS. contentDocument is null for a cross-origin frame, and in some
+  // engines reading it throws; either way there is nothing to collect. So a rule cannot reach across an origin
+  // however it is written, and reading a same-origin frame is no more access than the content script already
+  // has over that origin's top document.
+  //
+  // One level only. Nesting is rare, the depth would be unbounded, and a reader shell frames its content once.
+  function frameDocuments(env) {
+    const docs = [];
+    let frames;
+    try {
+      frames = Array.from(env.document.querySelectorAll("iframe"));
+    } catch (e) {
+      return docs;
+    }
+    for (const frame of frames) {
+      try {
+        const doc = frame.contentDocument;
+        if (doc && typeof doc.querySelectorAll === "function") docs.push(doc);
+      } catch (e) {
+        // Cross-origin, or a frame that has not finished loading. Neither is an error worth reporting.
+      }
+    }
+    return docs;
+  }
+
   async function resolveSource(src, scope, rule, env, cache) {
     switch (src.from) {
       case "url":
         return applyRegex(env.location.href, src.regex);
       case "css": {
         const parts = [];
-        // A selector list like "pre code, pre" matches nested elements; keep only the outermost so text isn't duplicated.
-        const matches = Array.from(env.document.querySelectorAll(src.selector));
-        matches.filter(el => !matches.some(other => other !== el && other.contains(el))).forEach(el => {
-          const t = src.attr ? el.getAttribute(src.attr) : (el.innerText !== undefined ? el.innerText : el.textContent);
-          if (t) parts.push(t);
-        });
+        // `frames: true` looks inside same-origin iframes INSTEAD of this document, which is what makes a
+        // reader shell readable: a page that loads its real content into a frame has nothing in the top
+        // document to match. Searching instead of also-searching keeps it composable -- put the framed source
+        // first and the plain one after it, and one rule covers both the shell and the standalone page.
+        const docs = src.frames ? frameDocuments(env) : [env.document];
+        for (const doc of docs) {
+          // A selector list like "pre code, pre" matches nested elements; keep only the outermost so text
+          // isn't duplicated. Done per document, since contains() does not reach across one.
+          const matches = Array.from(doc.querySelectorAll(src.selector));
+          matches.filter(el => !matches.some(other => other !== el && other.contains(el))).forEach(el => {
+            const t = src.attr ? el.getAttribute(src.attr) : (el.innerText !== undefined ? el.innerText : el.textContent);
+            if (t) parts.push(t);
+          });
+        }
         return applyRegex(parts.join("\n\n").trim(), src.regex);
       }
       case "graphql": {
@@ -567,6 +605,11 @@
           if (src.regex !== undefined && !isSafeRegex(src.regex)) err(`${where}.regex is invalid, too long, or unsafe`);
           if (src.from === "url" && !src.regex) err(`${where}: url sources need a regex`);
           if (src.from === "css" && (typeof src.selector !== "string" || !src.selector || src.selector.length > 300)) err(`${where}.selector is required (max 300 characters)`);
+          if (src.frames !== undefined) {
+            if (src.from !== "css") err(`${where}.frames only applies to css sources`);
+            else if (typeof src.frames !== "boolean") err(`${where}.frames must be true or false`);
+            else if (src.frames && Number.isInteger(rule.minEngine) && rule.minEngine < 3) err(`${where} reads frames, so minEngine must be at least 3`);
+          }
           if (src.from === "graphql") {
             if (!isObj(requests) || !requests[src.request]) err(`${where}.request "${src.request}" is not defined in requests`);
             else Object.values(requests[src.request].variables || {}).forEach(v => placeholders(v).forEach(n => deps[name].push(n)));

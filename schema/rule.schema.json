@@ -297,6 +297,9 @@
         },
         "value": {
           "type": "string"
+        },
+        "frames": {
+          "type": "boolean"
         }
       }
     },
