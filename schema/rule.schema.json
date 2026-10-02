@@ -269,7 +269,8 @@
             "var",
             "format",
             "input",
-            "literal"
+            "literal",
+            "harvest"
           ]
         },
         "regex": {
@@ -300,6 +301,11 @@
         },
         "frames": {
           "type": "boolean"
+        },
+        "driver": {
+          "type": "string",
+          "pattern": "^[a-z0-9.-]+/[a-z0-9-]+$",
+          "description": "For a harvest source: the id of the declarative driver whose collected text to read."
         }
       }
     },

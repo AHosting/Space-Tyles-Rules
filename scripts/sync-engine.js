@@ -4,17 +4,33 @@
 const fs = require("fs");
 const path = require("path");
 
-const SOURCE = process.env.EXTENSION_DIR ? path.join(process.env.EXTENSION_DIR, "rule_engine.js") : path.resolve(__dirname, "../../ChrExt/rule_engine.js");
-const COPY = path.resolve(__dirname, "../engine/rule_engine.js");
+// Both files are needed: the validator uses rule_engine.js for rules and drivers.js for drivers, and
+// drivers.js calls into CHRuleEngine for its regex safety check.
+const FILES = ["rule_engine.js", "drivers.js"];
+const DIR = process.env.EXTENSION_DIR || path.resolve(__dirname, "../../ChrExt");
 
-if (!fs.existsSync(SOURCE)) {
-  console.log(`Extension not found at ${SOURCE}. Set EXTENSION_DIR to its folder.`);
+const missing = FILES.filter(f => !fs.existsSync(path.join(DIR, f)));
+if (missing.length) {
+  console.log("Extension files not found in " + DIR + ": " + missing.join(", ") + ". Set EXTENSION_DIR to its folder.");
   process.exit(process.argv.includes("--check") ? 0 : 1);
 }
-const same = fs.readFileSync(SOURCE, "utf8") === fs.readFileSync(COPY, "utf8");
+
+const state = FILES.map(f => {
+  const copy = path.resolve(__dirname, "../engine", f);
+  const same = fs.existsSync(copy) && fs.readFileSync(path.join(DIR, f), "utf8") === fs.readFileSync(copy, "utf8");
+  return { f, copy, same };
+});
+
 if (process.argv.includes("--check")) {
-  console.log(same ? "✓ engine copy is up to date" : "✗ engine/rule_engine.js differs from the extension's — run: npm run sync-engine");
-  process.exit(same ? 0 : 1);
+  const stale = state.filter(x => !x.same);
+  stale.forEach(x => console.log("\u2717 engine/" + x.f + " differs from the extension's"));
+  if (!stale.length) console.log("\u2713 engine copies are up to date");
+  else console.log("  run: npm run sync-engine");
+  process.exit(stale.length ? 1 : 0);
 }
-fs.copyFileSync(SOURCE, COPY);
-console.log(same ? "engine copy was already up to date" : "✓ copied the extension's rule_engine.js into engine/");
+
+fs.mkdirSync(path.resolve(__dirname, "../engine"), { recursive: true });
+state.forEach(x => {
+  fs.copyFileSync(path.join(DIR, x.f), x.copy);
+  console.log(x.same ? "engine/" + x.f + " was already up to date" : "\u2713 copied " + x.f + " into engine/");
+});

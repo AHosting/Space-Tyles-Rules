@@ -21,6 +21,7 @@
 //   var     { name, regex? }                another variable
 //   format  { template }                    "{{a}} {{b}}"; empty if any referenced var is empty
 //   input   { name, regex? }                a value the user typed into the rule's form (see rule.inputs)
+//   harvest { driver, regex? }        what a declarative driver collected (see drivers.js)
 //   literal { value }
 // rule.inputs   = [{ key, label, type: "text" | "textarea" | "select", required?, placeholder?, rows?, default?, options? }]
 //   - a rule with inputs shows a form in the modal; the values are read by `input` sources.
@@ -32,12 +33,13 @@
   // engine is older than that must not run (or install) the rule.
   //   2 - variables may declare a `fallback`, so a rule can be written to survive a selector going stale.
   //   3 - css sources may set `frames: true` to read same-origin iframe documents.
-  const ENGINE_VERSION = 3;
+  //   4 - `harvest` sources, which read what a declarative driver collected (see drivers.js, harvest.js).
+  const ENGINE_VERSION = 4;
 
   // Sources that read the page the user is on. A variable built only from these is tied to one site; one with
   // a fallback is not, because it can be filled in by hand anywhere. Reading the URL counts: a rule that pulls
   // an id out of the address depends on the shape of that site's addresses, whatever its `domains` say.
-  const PAGE_SOURCES = ["css", "url", "graphql"];
+  const PAGE_SOURCES = ["css", "url", "graphql", "harvest"];
 
   // Rules can come from a public registry, so the engine enforces its own limits regardless of what a rule says.
   //
@@ -323,6 +325,14 @@
         const v = env.inputs && env.inputs[src.name];
         return applyRegex(v === undefined || v === null ? "" : String(v), src.regex);
       }
+      case "harvest": {
+        // Reads what a driver ALREADY collected. It never starts one: a harvest scrolls the page and takes
+        // seconds, and extraction runs on every keystroke of the preview. So the panel gathers on an explicit
+        // press and hands the result in here, the same way it hands in text the user pasted. Empty until
+        // then, which makes the variable missing, which is what puts the Gather button on screen.
+        const v = env.harvested && env.harvested[src.driver];
+        return applyRegex(v === undefined || v === null ? "" : String(v), src.regex);
+      }
       case "literal":
         return src.value;
       default:
@@ -490,7 +500,7 @@
   }
 
   // ---------- rule validation (used by the registry's CI and by the extension before it installs anything) ----------
-  const SOURCE_TYPES = ["url", "css", "graphql", "var", "format", "input", "literal"];
+  const SOURCE_TYPES = ["url", "css", "graphql", "var", "format", "input", "literal", "harvest"];
   const TRANSFORMS = ["htmlToText", "round2", "slugToTitle", "trim", "stripLineNumbers"];
   const INPUT_TYPES = ["text", "textarea", "select"];
   const FALLBACK_TYPES = ["text", "textarea"];
@@ -622,6 +632,10 @@
           }
           if (src.from === "input" && !inputKeys.includes(src.name)) err(`${where}.name "${src.name}" is not a declared input`);
           if (src.from === "literal" && typeof src.value !== "string") err(`${where}.value must be a string`);
+          if (src.from === "harvest") {
+            if (typeof src.driver !== "string" || !/^[a-z0-9.-]+\/[a-z0-9-]+$/.test(src.driver)) err(`${where}.driver must be a driver id like "x.com/thread"`);
+            if (Number.isInteger(rule.minEngine) && rule.minEngine < 4) err(`${where} is a harvest source, so minEngine must be at least 4`);
+          }
         });
       });
       Object.entries(deps).forEach(([name, list]) => list.forEach(d => {
