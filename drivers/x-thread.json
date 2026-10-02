@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "x.com/thread",
+  "version": 1,
+  "minEngine": 4,
+  "name": "Load a whole X conversation",
+  "description": "Scrolls an X thread and collects the tweets as they appear. X removes tweets from the page once they scroll out of view, so reading the page once only ever gets the few currently on screen.",
+  "author": "you",
+  "domains": ["x.com", "twitter.com"],
+  "tags": ["social", "thread"],
+  "match": {
+    "pathRegex": "^/[^/]+/status/\\d+",
+    "hint": "Open a tweet's own page, then press Gather."
+  },
+  "harvest": {
+    "item": "article[data-testid=\"tweet\"]",
+    "key": {
+      "selector": "a[href*=\"/status/\"]",
+      "attr": "href",
+      "regex": "/status/(\\d+)"
+    },
+    "scroll": "window",
+    "maxPasses": 60,
+    "settleMs": 500,
+    "stopAfterQuietPasses": 3,
+    "maxItems": 400,
+    "maxMs": 60000,
+    "expand": {
+      "selector": "button, [role=\"button\"]",
+      "textMatches": "^\\s*(show (more |additional )?repl(y|ies)|show more|more repl(y|ies))\\s*$",
+      "maxClicks": 15
+    }
+  }
+}
