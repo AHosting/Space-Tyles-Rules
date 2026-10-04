@@ -1,0 +1,253 @@
+{
+  "schemaVersion": 1,
+  "id": "youtube.com/explain-segment",
+  "version": 1,
+  "minEngine": 4,
+  "name": "Explain this part of the video",
+  "description": "Explains a stretch of a YouTube video from its transcript. Leave the times blank and it uses wherever you have paused. Needs the youtube.com/transcript driver, or the transcript panel open.",
+  "author": "you",
+  "domains": [
+    "youtube.com",
+    "www.youtube.com"
+  ],
+  "tags": [
+    "video",
+    "transcript",
+    "explain"
+  ],
+  "match": {
+    "pathRegex": "^/watch",
+    "hint": "Written for a YouTube video page. Anywhere else, paste the transcript in below."
+  },
+  "inputs": [
+    {
+      "key": "from",
+      "label": "From (optional)",
+      "type": "text",
+      "required": false,
+      "placeholder": "e.g. 12:30 — blank means where you are now"
+    },
+    {
+      "key": "to",
+      "label": "To (optional)",
+      "type": "text",
+      "required": false,
+      "placeholder": "e.g. 15:00 — blank means a couple of minutes on"
+    },
+    {
+      "key": "depth",
+      "label": "What do you want",
+      "type": "select",
+      "default": "explain",
+      "options": [
+        {
+          "value": "explain",
+          "label": "Explain it — what is being said, and why"
+        },
+        {
+          "value": "define",
+          "label": "Define it — the terms and names used"
+        },
+        {
+          "value": "verify",
+          "label": "Check it — is the claim sound"
+        },
+        {
+          "value": "notes",
+          "label": "Notes — the points, as a list"
+        }
+      ]
+    },
+    {
+      "key": "question",
+      "label": "Anything specific to ask (optional)",
+      "type": "textarea",
+      "rows": 2,
+      "required": false,
+      "placeholder": "What did they mean by “the bitter lesson”?"
+    }
+  ],
+  "variables": {
+    "transcript": {
+      "sources": [
+        {
+          "from": "harvest",
+          "driver": "youtube.com/transcript"
+        },
+        {
+          "from": "css",
+          "selector": "ytd-transcript-segment-renderer"
+        }
+      ],
+      "maxChars": 200000,
+      "fallback": {
+        "label": "The transcript",
+        "type": "textarea",
+        "rows": 8,
+        "placeholder": "Paste the transcript",
+        "hint": "Press Gather above to have it opened and read. Or open “Show transcript” under the video yourself, then press ↻."
+      }
+    },
+    "nowAt": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": ".ytp-time-current"
+        },
+        {
+          "from": "literal",
+          "value": "the start"
+        }
+      ]
+    },
+    "duration": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": ".ytp-time-duration"
+        },
+        {
+          "from": "literal",
+          "value": "unknown"
+        }
+      ]
+    },
+    "title": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": "h1.ytd-watch-metadata"
+        },
+        {
+          "from": "css",
+          "selector": "meta[name=\"title\"]",
+          "attr": "content"
+        },
+        {
+          "from": "css",
+          "selector": "h1"
+        }
+      ],
+      "maxChars": 300,
+      "fallback": {
+        "label": "The video's title",
+        "type": "text",
+        "placeholder": "Paste the title"
+      }
+    },
+    "channel": {
+      "sources": [
+        {
+          "from": "css",
+          "selector": "ytd-channel-name #text"
+        },
+        {
+          "from": "css",
+          "selector": "#owner #channel-name"
+        },
+        {
+          "from": "css",
+          "selector": "link[itemprop=\"name\"]",
+          "attr": "content"
+        },
+        {
+          "from": "literal",
+          "value": "unknown"
+        }
+      ],
+      "maxChars": 200
+    },
+    "videoUrl": {
+      "sources": [
+        {
+          "from": "url",
+          "regex": "(https://[^&]*v=[A-Za-z0-9_-]+)"
+        },
+        {
+          "from": "url",
+          "regex": "(.+)"
+        },
+        {
+          "from": "literal",
+          "value": "not given"
+        }
+      ]
+    },
+    "from": {
+      "sources": [
+        {
+          "from": "input",
+          "name": "from"
+        },
+        {
+          "from": "literal",
+          "value": "(not given)"
+        }
+      ]
+    },
+    "to": {
+      "sources": [
+        {
+          "from": "input",
+          "name": "to"
+        },
+        {
+          "from": "literal",
+          "value": "(not given)"
+        }
+      ]
+    },
+    "depth": {
+      "sources": [
+        {
+          "from": "input",
+          "name": "depth"
+        }
+      ]
+    },
+    "question": {
+      "sources": [
+        {
+          "from": "input",
+          "name": "question"
+        },
+        {
+          "from": "literal",
+          "value": "(they did not ask one)"
+        }
+      ]
+    }
+  },
+  "text": [
+    "You are watching a video with someone and they have stopped to ask about a particular stretch of it.",
+    "",
+    "WHICH STRETCH",
+    "- They asked for: {{from}} to {{to}}",
+    "- If both of those are blank, they are paused at {{nowAt}} of {{duration}}. Take the stretch to be from about a minute before that to about two minutes after it, and say at the top which stretch you read.",
+    "- If only the start is given, read on for two or three minutes from there.",
+    "- The transcript below is timestamped. Work only from the lines inside the stretch. You may look outside it to resolve a pronoun or a term introduced earlier, and say so when you do.",
+    "",
+    "WHAT THEY WANT: {{depth}}",
+    "- explain: say what is being argued or shown in that stretch, and why it follows from what came before. Lead with one sentence that would let someone who missed it carry on watching.",
+    "- define: pick out the terms, names, products and jargon used in that stretch and define each one briefly, in the sense the speaker is using it.",
+    "- verify: state the claim being made as precisely as the transcript allows, then say what would have to be true for it to hold, and what the speaker does not establish. Be clear about the difference between “this is wrong” and “this is not supported here”.",
+    "- notes: the points made in that stretch, as a short list, each with its timestamp.",
+    "",
+    "RULES",
+    "- Work only from the transcript. If something is not in it, say so rather than supplying it from general knowledge. A video's transcript has no slides, no diagrams and no code on screen, so if the speaker says “as you can see here”, that is a gap and you should name it.",
+    "- Auto-generated transcripts have no punctuation and mis-hear names and technical terms. Read through that. Where a word is plainly a mis-transcription, say what you think was meant and mark it as a guess.",
+    "- Quote sparingly and exactly, with the timestamp.",
+    "- Do not summarise the whole video. They asked about a stretch of it.",
+    "",
+    "THEIR QUESTION, if they asked one: {{question}}",
+    "Answer it first and directly, before anything else.",
+    "",
+    "VIDEO: {{title}} — {{channel}}",
+    "{{videoUrl}}",
+    "Currently paused at {{nowAt}} of {{duration}}.",
+    "",
+    "TRANSCRIPT BEGINS",
+    "{{transcript}}",
+    "TRANSCRIPT ENDS"
+  ]
+}

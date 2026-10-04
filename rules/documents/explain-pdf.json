@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "id": "documents/explain-pdf",
+  "version": 1,
+  "minEngine": 5,
+  "name": "Explain this PDF",
+  "description": "Reads the text of a PDF open in the tab and explains what it says: the argument, the evidence, and what it leaves out. Works on a local file as well as one on the web.",
+  "author": "you",
+  "domains": [
+    "*"
+  ],
+  "tags": [
+    "pdf",
+    "document",
+    "reading"
+  ],
+  "inputs": [
+    {
+      "key": "focus",
+      "label": "What do you want from it",
+      "type": "select",
+      "default": "understand",
+      "options": [
+        {
+          "value": "understand",
+          "label": "Understand it - what it says and why"
+        },
+        {
+          "value": "evaluate",
+          "label": "Evaluate it - is the argument sound"
+        },
+        {
+          "value": "extract",
+          "label": "Extract it - the facts, numbers and claims"
+        }
+      ]
+    },
+    {
+      "key": "question",
+      "label": "Anything specific to ask (optional)",
+      "type": "textarea",
+      "rows": 2,
+      "required": false,
+      "placeholder": "What does it say about funding?"
+    }
+  ],
+  "variables": {
+    "document": {
+      "sources": [
+        {
+          "from": "pdf"
+        }
+      ],
+      "maxChars": 400000,
+      "fallback": {
+        "label": "The document's text",
+        "type": "textarea",
+        "rows": 8,
+        "placeholder": "Paste the text of the document",
+        "hint": "Press “Read the PDF” above to have it read automatically. Paste it here if the document is a scan, which has no text to read."
+      }
+    },
+    "focus": {
+      "sources": [
+        {
+          "from": "input",
+          "name": "focus"
+        }
+      ]
+    },
+    "question": {
+      "sources": [
+        {
+          "from": "input",
+          "name": "question"
+        },
+        {
+          "from": "literal",
+          "value": "(they did not ask one)"
+        }
+      ]
+    },
+    "docUrl": {
+      "sources": [
+        {
+          "from": "url",
+          "regex": "(.+)"
+        },
+        {
+          "from": "literal",
+          "value": "a local file"
+        }
+      ]
+    }
+  },
+  "text": [
+    "You are reading a document with someone who has it open in front of them.",
+    "",
+    "WHAT THEY WANT FROM IT: {{focus}}",
+    "- understand: explain what the document says and why it says it. Lead with the central claim in one sentence, then the structure of the argument, then what it rests on.",
+    "- evaluate: do the above briefly, then spend most of your answer on whether the argument holds. Name the assumptions it does not defend, the evidence it does not provide, and the obvious objection it does not address.",
+    "- extract: skip the prose. Give the facts, figures, dates, names and explicit claims as a list, each with the words the document uses.",
+    "",
+    "RULES",
+    "- Work only from the text below. If something is not in it, say so rather than supplying it from general knowledge.",
+    "- The text is extracted from a PDF, so tables arrive as runs of numbers and page furniture (headers, footers, page numbers) is mixed into the prose. Read past that; do not treat it as content.",
+    "- If the document is plainly incomplete — it starts mid-sentence, or the extraction stopped early — say so first, in one line, and then work with what is there.",
+    "- Quote exactly when you quote, and keep quotes short.",
+    "",
+    "THEIR QUESTION, if they asked one: {{question}}",
+    "Answer it first and directly, before anything else.",
+    "",
+    "SOURCE: {{docUrl}}",
+    "",
+    "DOCUMENT BEGINS",
+    "{{document}}",
+    "DOCUMENT ENDS"
+  ]
+}

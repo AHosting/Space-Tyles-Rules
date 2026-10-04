@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "youtube.com/transcript",
+  "version": 1,
+  "minEngine": 4,
+  "name": "Open and read a video's transcript",
+  "description": "YouTube keeps the transcript behind a button, so nothing on the page can read it until something presses that button. This opens the panel and collects every line with its timestamp.",
+  "author": "you",
+  "domains": [
+    "youtube.com",
+    "www.youtube.com"
+  ],
+  "tags": [
+    "video",
+    "transcript"
+  ],
+  "match": {
+    "pathRegex": "^/watch",
+    "hint": "Open a video's page, then press Gather."
+  },
+  "harvest": {
+    "item": "ytd-transcript-segment-renderer",
+    "key": {
+      "selector": ".segment-timestamp",
+      "regex": "([0-9:]+)"
+    },
+    "scroll": "window",
+    "maxPasses": 40,
+    "settleMs": 400,
+    "stopAfterQuietPasses": 3,
+    "maxItems": 3000,
+    "maxMs": 45000,
+    "expand": {
+      "selector": "button, [role=\"button\"]",
+      "textMatches": "^\\s*show transcript\\s*$",
+      "maxClicks": 2
+    }
+  }
+}

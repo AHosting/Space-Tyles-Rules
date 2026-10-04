@@ -22,6 +22,8 @@
 //   format  { template }                    "{{a}} {{b}}"; empty if any referenced var is empty
 //   input   { name, regex? }                a value the user typed into the rule's form (see rule.inputs)
 //   harvest { driver, regex? }        what a declarative driver collected (see drivers.js)
+//   pdf     { pages?, regex? }        the text of the PDF open in the tab (see pdftext.js);
+//                                     pages is "1-3,9,20-" and defaults to the whole document
 //   literal { value }
 // rule.inputs   = [{ key, label, type: "text" | "textarea" | "select", required?, placeholder?, rows?, default?, options? }]
 //   - a rule with inputs shows a form in the modal; the values are read by `input` sources.
@@ -34,12 +36,13 @@
   //   2 - variables may declare a `fallback`, so a rule can be written to survive a selector going stale.
   //   3 - css sources may set `frames: true` to read same-origin iframe documents.
   //   4 - `harvest` sources, which read what a declarative driver collected (see drivers.js, harvest.js).
-  const ENGINE_VERSION = 4;
+  //   5 - `pdf` sources, which read the text of a PDF the panel has parsed (see pdftext.js).
+  const ENGINE_VERSION = 5;
 
   // Sources that read the page the user is on. A variable built only from these is tied to one site; one with
   // a fallback is not, because it can be filled in by hand anywhere. Reading the URL counts: a rule that pulls
   // an id out of the address depends on the shape of that site's addresses, whatever its `domains` say.
-  const PAGE_SOURCES = ["css", "url", "graphql", "harvest"];
+  const PAGE_SOURCES = ["css", "url", "graphql", "harvest", "pdf"];
 
   // Rules can come from a public registry, so the engine enforces its own limits regardless of what a rule says.
   //
@@ -139,6 +142,39 @@
 
   function fillVars(str, ctx) {
     return String(str).replace(/\{\{(\w+)\}\}/g, (_, key) => ctx[key] || "");
+  }
+
+  // "3", "2-7", "1-3,9,20-", "" or "all" for the whole document. One-based and inclusive, because that is how
+  // a reader numbers pages and a rule is written by a reader.
+  //
+  // Asking for pages a document does not have is not an error. A rule that says "the first twenty pages" is
+  // expressing a budget, not an assertion, and a four page document should satisfy it with four pages rather
+  // than failing and sending the user to a paste box.
+  //
+  // Pages come back IN THE ORDER THEY WERE ASKED FOR, not in document order. "12,1-3" is a rule author
+  // putting the conclusion before the introduction on purpose, and silently re-sorting it would be the
+  // engine overruling a decision it cannot see the reason for. Duplicates are dropped, because asking for
+  // the same page twice is a typo in every case anyone has.
+  const PAGES_SPEC = /^(all|\s*\d*\s*-?\s*\d*\s*(,\s*\d*\s*-?\s*\d*\s*)*)$/;
+
+  function selectPdfPages(pages, spec) {
+    const s = String(spec === undefined || spec === null ? "" : spec).trim();
+    if (!s || s === "all") return pages.slice();
+    const out = [];
+    const seen = new Set();
+    for (const part of s.split(",")) {
+      const m = /^\s*(\d+)?\s*(-)?\s*(\d+)?\s*$/.exec(part);
+      if (!m || (!m[1] && !m[3])) continue;
+      const from = m[1] ? parseInt(m[1], 10) : 1;
+      const to = m[2] ? (m[3] ? parseInt(m[3], 10) : pages.length) : from;
+      for (let i = Math.max(1, from); i <= Math.min(to, pages.length); i++) {
+        if (!seen.has(i)) {
+          seen.add(i);
+          out.push(pages[i - 1]);
+        }
+      }
+    }
+    return out;
   }
 
   function htmlToText(html, env) {
@@ -333,6 +369,15 @@
         const v = env.harvested && env.harvested[src.driver];
         return applyRegex(v === undefined || v === null ? "" : String(v), src.regex);
       }
+      case "pdf": {
+        // Reads the PDF the panel has ALREADY parsed, for the same reason harvest reads an existing harvest:
+        // parsing a 300 page document takes seconds and extraction runs on every keystroke of the preview.
+        // Empty until the user presses Read, which is what puts that button on screen.
+        const doc = env.pdf;
+        if (!doc || !Array.isArray(doc.pages)) return "";
+        const chosen = selectPdfPages(doc.pages, src.pages);
+        return applyRegex(chosen.join("\n\n").trim(), src.regex);
+      }
       case "literal":
         return src.value;
       default:
@@ -500,7 +545,7 @@
   }
 
   // ---------- rule validation (used by the registry's CI and by the extension before it installs anything) ----------
-  const SOURCE_TYPES = ["url", "css", "graphql", "var", "format", "input", "literal", "harvest"];
+  const SOURCE_TYPES = ["url", "css", "graphql", "var", "format", "input", "literal", "harvest", "pdf"];
   const TRANSFORMS = ["htmlToText", "round2", "slugToTitle", "trim", "stripLineNumbers"];
   const INPUT_TYPES = ["text", "textarea", "select"];
   const FALLBACK_TYPES = ["text", "textarea"];
@@ -636,6 +681,13 @@
             if (typeof src.driver !== "string" || !/^[a-z0-9.-]+\/[a-z0-9-]+$/.test(src.driver)) err(`${where}.driver must be a driver id like "x.com/thread"`);
             if (Number.isInteger(rule.minEngine) && rule.minEngine < 4) err(`${where} is a harvest source, so minEngine must be at least 4`);
           }
+          if (src.from === "pdf") {
+            if (src.pages !== undefined) {
+              if (typeof src.pages !== "string") err(`${where}.pages must be a string like "1-20"`);
+              else if (!PAGES_SPEC.test(src.pages)) err(`${where}.pages must look like "3", "2-7", "1-3,9,20-" or "all"`);
+            }
+            if (Number.isInteger(rule.minEngine) && rule.minEngine < 5) err(`${where} is a pdf source, so minEngine must be at least 5`);
+          }
         });
       });
       Object.entries(deps).forEach(([name, list]) => list.forEach(d => {
@@ -701,9 +753,13 @@
     );
   }
 
+  // The vocabulary is exported, not just enforced. An authoring tool that hard-codes its own list of source
+  // types and transforms is a second definition of the schema, and the two drift the moment the engine
+  // gains a capability -- which it has done five times. A builder reads these and is right by construction.
   const api = {
     extract, htmlToText, hostMatches, ruleMatchesHost, pathMatches, isCompatible, isPortable,
-    validateRule, normalizeRule, isSafeRegex, isQueryOnly, ENGINE_VERSION, LIMITS
+    validateRule, normalizeRule, isSafeRegex, isQueryOnly, selectPdfPages, ENGINE_VERSION, LIMITS,
+    SOURCE_TYPES, PAGE_SOURCES, TRANSFORMS, INPUT_TYPES, FALLBACK_TYPES
   };
   root.CHRuleEngine = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
