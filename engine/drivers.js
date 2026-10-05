@@ -245,7 +245,40 @@ const CHDrivers = (() => {
     return out;
   }
 
-  return { KEY, LIMITS, DEFAULTS, TOP_LEVEL, validateDriver, settings, describeDriver, bare, load, install, remove, byId, matchesHost, requiredBy };
+  // WHETHER PRESSING RUN SHOULD GATHER FIRST.
+  //
+  // Gathering is explicit because it moves someone's page for up to a minute, and because extraction
+  // has to stay cheap -- it runs on every keystroke of the preview, so a harvest can never live inside
+  // it. Neither of those argues for making the user press TWO buttons when they have already said what
+  // they want: Run means "do what it takes".
+  //
+  // It gathers only when all four are true, because each one is a way of being wrong otherwise:
+  //   the rule needs a driver            - nothing to gather for
+  //   the driver is installed            - gathering is impossible, and the panel already says so
+  //   nothing has been gathered yet      - re-scrolling a page we already read is pure cost
+  //   something is actually missing      - if the user pasted the text by hand, leave their page alone
+  //
+  // Returns the driver id to gather, or "".
+  function wantedBy(rule, extraction, harvested, installedDrivers) {
+    const ids = requiredBy(rule);
+    if (!ids.length) return "";
+    const id = ids[0];
+    if (!byId(installedDrivers || [], id)) return "";
+    if (harvested && harvested[id]) return "";
+
+    // No extraction yet means nothing has been compiled, so there is nothing to say it is unnecessary.
+    if (!extraction) return id;
+
+    const missing = new Set([
+      ...(extraction.needed || []).map((f) => f.name),
+      ...(extraction.missing || [])
+    ]);
+    const wanted = Object.entries((rule && rule.variables) || {}).some(([name, spec]) =>
+      missing.has(name) && (spec.sources || []).some((s) => s && s.from === "harvest" && s.driver === id));
+    return wanted ? id : "";
+  }
+
+  return { KEY, LIMITS, DEFAULTS, TOP_LEVEL, validateDriver, settings, describeDriver, bare, load, install, remove, byId, matchesHost, requiredBy, wantedBy };
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = CHDrivers;

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "youtube.com/explain-segment",
-  "version": 4,
+  "version": 5,
   "minEngine": 6,
   "name": "Explain this part of the video",
   "description": "Explains a stretch of a YouTube video from its transcript. Leave the times blank and it uses wherever you have paused. Needs the youtube.com/transcript driver, or the transcript panel open.",
@@ -31,7 +31,8 @@
         "sources": [
           {
             "from": "css",
-            "selector": ".ytp-time-current"
+            "selector": ".ytp-time-current",
+            "regex": "(\\d{1,2}:\\d{2}(?::\\d{2})?)"
           },
           {
             "from": "css",
@@ -45,11 +46,18 @@
           "sources": [
             {
               "from": "css",
-              "selector": ".ytp-tooltip-text"
+              "selector": ".ytp-tooltip-text",
+              "regex": "(\\d{1,2}:\\d{2}(?::\\d{2})?)"
             },
             {
               "from": "css",
-              "selector": ".ytp-tooltip-title"
+              "selector": ".ytp-tooltip-title",
+              "regex": "(\\d{1,2}:\\d{2}(?::\\d{2})?)"
+            },
+            {
+              "from": "css",
+              "selector": ".ytp-tooltip",
+              "regex": "(\\d{1,2}:\\d{2}(?::\\d{2})?)"
             }
           ]
         }
@@ -66,7 +74,8 @@
         "sources": [
           {
             "from": "css",
-            "selector": ".ytp-time-current"
+            "selector": ".ytp-time-current",
+            "regex": "(\\d{1,2}:\\d{2}(?::\\d{2})?)"
           },
           {
             "from": "css",
@@ -80,11 +89,18 @@
           "sources": [
             {
               "from": "css",
-              "selector": ".ytp-tooltip-text"
+              "selector": ".ytp-tooltip-text",
+              "regex": "(\\d{1,2}:\\d{2}(?::\\d{2})?)"
             },
             {
               "from": "css",
-              "selector": ".ytp-tooltip-title"
+              "selector": ".ytp-tooltip-title",
+              "regex": "(\\d{1,2}:\\d{2}(?::\\d{2})?)"
+            },
+            {
+              "from": "css",
+              "selector": ".ytp-tooltip",
+              "regex": "(\\d{1,2}:\\d{2}(?::\\d{2})?)"
             }
           ]
         }
