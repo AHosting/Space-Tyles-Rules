@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Policy — Context Hypervisor</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1f2b; --dim: #5c6675; --line: #e3e7ee;
+    --box: #f6f8fb; --accent: #0b6e7f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #11151c; --fg: #e6eaf2; --dim: #9aa6b8; --line: #263041;
+      --box: #182130; --accent: #5fd3e6;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #11151c; --fg: #e6eaf2; --dim: #9aa6b8; --line: #263041;
+    --box: #182130; --accent: #5fd3e6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 48px 16px 96px;
+  }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.4px; }
+  h2 { font-size: 19px; margin: 40px 0 10px; letter-spacing: -0.2px; }
+  h3 { font-size: 15px; margin: 24px 0 6px; }
+  p, li { color: var(--fg); }
+  .sub { color: var(--dim); margin: 0 0 8px; }
+  .lead { font-size: 17px; }
+  code { background: var(--box); padding: 1px 5px; border-radius: 4px; font-size: 13.5px; }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--dim); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; }
+  .box { background: var(--box); border: 1px solid var(--line); border-radius: 8px; padding: 14px 18px; margin: 18px 0; }
+  .box p:first-child { margin-top: 0; } .box p:last-child { margin-bottom: 0; }
+  ul { padding-left: 22px; }
+  a { color: var(--accent); }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 40px 0; }
+  footer { color: var(--dim); font-size: 13.5px; }
+  @media (max-width: 560px) {
+    body { padding: 32px 16px 72px; }
+    table, thead, tbody, th, td, tr { display: block; }
+    thead { display: none; }
+    td { border: 0; padding: 2px 0; }
+    tr { border-bottom: 1px solid var(--line); padding: 10px 0; }
+    td:first-child { font-weight: 600; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>Privacy Policy</h1>
+  <p class="sub">Context Hypervisor — Prompt Compiler (Chrome extension)</p>
+  <p class="sub">Last updated 5 October 2026</p>
+
+  <div class="box">
+    <p><strong>The short version.</strong> Everything this extension stores stays on your own computer.
+    There is no account, no server belonging to the developer, no analytics and no tracking. The only
+    time anything leaves your browser is when you press a button to send a prompt to an AI service you
+    chose and signed up for yourself, and the only thing sent is the prompt you can read on screen
+    before you send it.</p>
+  </div>
+
+  <h2>Who this is from</h2>
+  <p>Context Hypervisor is developed and published by Pushkal Gupta as an independent project. Questions
+  about this policy can be raised as an issue on the project's rule registry at
+  <a href="https://github.com/AHosting/Space-Tyles-Rules">github.com/AHosting/Space-Tyles-Rules</a>.</p>
+
+  <h2>What the extension does</h2>
+  <p>It reads the page you are looking at, takes from it only the parts that the rule you selected asks
+  for, and assembles those into a prompt. You then choose what to do with that prompt: copy it, open it
+  in an AI service you are already logged in to, or send it through an API key you supplied.</p>
+
+  <h2>What is stored, and where</h2>
+  <p>All of the following is kept in Chrome's local extension storage, on your device. None of it is
+  transmitted anywhere by the extension. Uninstalling the extension deletes all of it.</p>
+
+  <table>
+    <thead>
+      <tr><th>What</th><th>Why</th><th>Where it goes</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>API keys you enter</td>
+        <td>So the extension can call the AI provider you chose on your behalf</td>
+        <td>Your device only. Sent solely to the provider that issued the key, as that provider's API requires.</td>
+      </tr>
+      <tr>
+        <td>Rules and drivers you install</td>
+        <td>They define what gets read from a page and how the prompt is worded</td>
+        <td>Your device only.</td>
+      </tr>
+      <tr>
+        <td>Activity history — the address and title of a page you ran a rule on, whether it was a PDF, and how many images you attached</td>
+        <td>So you can see and review what the extension has read on your behalf</td>
+        <td>Your device only. Clearable from the Activity page at any time.</td>
+      </tr>
+      <tr>
+        <td>Saved prompts</td>
+        <td>So you can reuse a prompt you compiled earlier</td>
+        <td>Your device only.</td>
+      </tr>
+      <tr>
+        <td>Preferences — your chosen provider and model, which rule you last used on a site, panel settings</td>
+        <td>So the extension behaves consistently between visits</td>
+        <td>Your device only.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Page content itself is <strong>not</strong> stored. It is read when you ask for a prompt, used to
+  build that prompt, and discarded. Only the prompt you explicitly save is kept.</p>
+
+  <h2>What leaves your browser</h2>
+
+  <h3>1. The prompt, to the AI service you picked — only when you press send</h3>
+  <p>Depending on your choice, the prompt is sent to one of:</p>
+  <ul>
+    <li><code>api.anthropic.com</code> (Anthropic)</li>
+    <li><code>api.openai.com</code> (OpenAI)</li>
+    <li><code>generativelanguage.googleapis.com</code> (Google)</li>
+    <li>or it is typed into a tab you already have open and are already signed in to, at
+      <code>chatgpt.com</code>, <code>claude.ai</code> or <code>gemini.google.com</code></li>
+  </ul>
+  <p>What is sent is the prompt shown in the panel, plus any image or screenshot you attached. Because a
+  prompt is built from the page you are on, it can contain text from that page — that is the purpose of
+  the extension. The prompt is fully visible and editable before you send it, and nothing is sent
+  automatically or in the background.</p>
+  <p>Once the prompt reaches an AI provider, that provider's own privacy policy and terms govern what
+  happens to it. This extension has no control over, and no visibility into, their handling of it.</p>
+
+  <h3>2. A request for the rule catalogue</h3>
+  <p>When you open the rule library, the extension fetches a static JSON catalogue from
+  <code>ahosting.github.io</code>, which is GitHub Pages. This is an ordinary file download. It contains
+  no information about you, the page you are on, or what you have installed. As with any web request,
+  GitHub receives the network-level metadata it would receive for any visit to a web page, such as your
+  IP address; GitHub's privacy statement governs that.</p>
+
+  <h3>3. Nothing else</h3>
+  <p>There are no analytics, no crash reporting, no advertising, no tracking pixels and no developer
+  server. The extension makes no network request other than the two described above.</p>
+
+  <h2>What is never done</h2>
+  <ul>
+    <li>Your data is never sold, rented or shared with data brokers.</li>
+    <li>Your data is never used to build advertising or marketing profiles.</li>
+    <li>Your data is never transmitted to the developer, who operates no server that could receive it.</li>
+    <li>Nothing is read from a page except when you ask for a prompt on that page.</li>
+    <li>No credentials, cookies or session tokens from the sites you visit are read, copied or stored.</li>
+  </ul>
+
+  <h2>Why the extension asks for access to all sites</h2>
+  <p>A prompt is compiled from whatever page you happen to be on, and a rule can be written for any site,
+  including one installed long after the extension was. There is no list of sites that could be
+  declared in advance without deciding for you which pages the tool is allowed to help with.</p>
+  <p>Access is used only in response to something you do: selecting a rule, pressing a button, or
+  picking an element. The extension does not read or transmit anything from a page you have not acted
+  on.</p>
+
+  <h2>Children</h2>
+  <p>This extension is a developer and productivity tool. It is not directed at children, and it collects
+  nothing that would identify anyone.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>If what the extension does with data changes, this page changes with it and the date at the top is
+  updated. Material changes will also be described in the extension's Web Store listing.</p>
+
+  <hr />
+  <footer>
+    <p>Context Hypervisor — Prompt Compiler. This policy covers the Chrome extension only.</p>
+  </footer>
+
+</main>
+</body>
+</html>
