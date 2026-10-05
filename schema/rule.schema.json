@@ -291,6 +291,44 @@
           "minimum": 1,
           "maximum": 500000
         },
+        "timeSlice": {
+          "description": "Engine 7. Keeps only the part of a timestamped text between two times, padded. `from` and `to` name OTHER VARIABLES holding the bounds, not the times themselves, so a bound can come from a form field or from the page. Applied before maxChars: capping first would discard minute 70 and then look for it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from"],
+          "properties": {
+            "from": {
+              "description": "The variable holding the start time.",
+              "type": "string",
+              "minLength": 1
+            },
+            "to": {
+              "description": "The variable holding the end time. Without it, `after` decides how far to read.",
+              "type": "string"
+            },
+            "before": {
+              "description": "Seconds of context kept before the start.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7200
+            },
+            "after": {
+              "description": "Seconds of context kept after the end.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 7200
+            },
+            "stamp": {
+              "description": "How a timestamp is recognised in the text. Defaults to h:mm / h:mm:ss.",
+              "type": "string"
+            },
+            "separator": {
+              "description": "What divides one timestamped chunk from the next. Defaults to a blank line.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
         "sources": {
           "type": "array",
           "minItems": 1,
