@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "youtube.com/explain-segment",
-  "version": 5,
-  "minEngine": 6,
+  "version": 6,
+  "minEngine": 7,
   "name": "Explain this part of the video",
   "description": "Explains a stretch of a YouTube video from its transcript. Leave the times blank and it uses wherever you have paused. Needs the youtube.com/transcript driver, or the transcript panel open.",
   "author": "you",
@@ -170,6 +170,12 @@
         "rows": 8,
         "placeholder": "Paste the transcript",
         "hint": "Open “...more” under the video, then “Show transcript”, then press ↻ at the top of this panel. If it still asks, the transcript panel is not where this rule expects — use 🧪 Build a rule to find it."
+      },
+      "timeSlice": {
+        "from": "sliceFrom",
+        "to": "sliceTo",
+        "before": 60,
+        "after": 120
       }
     },
     "nowAt": {
@@ -319,38 +325,66 @@
           "value": "(they did not ask one)"
         }
       ]
+    },
+    "sliceFrom": {
+      "hidden": true,
+      "sources": [
+        {
+          "from": "input",
+          "name": "from",
+          "regex": "(\\d{1,2}:\\d{2}(?::\\d{2})?)"
+        },
+        {
+          "from": "var",
+          "name": "nowAt",
+          "regex": "(\\d{1,2}:\\d{2}(?::\\d{2})?)"
+        },
+        {
+          "from": "literal",
+          "value": "0:00"
+        }
+      ]
+    },
+    "sliceTo": {
+      "hidden": true,
+      "sources": [
+        {
+          "from": "input",
+          "name": "to",
+          "regex": "(\\d{1,2}:\\d{2}(?::\\d{2})?)"
+        }
+      ]
     }
   },
   "text": [
     "You are watching a video with someone and they have stopped to ask about a particular stretch of it.",
     "",
-    "WHICH STRETCH",
-    "- They asked for: {{from}} to {{to}}",
-    "- If both of those are blank, they are paused at {{nowAt}} of {{duration}}. Take the stretch to be from about a minute before that to about two minutes after it, and say at the top which stretch you read.",
-    "- If only the start is given, read on for two or three minutes from there.",
-    "- The transcript below is timestamped. Work only from the lines inside the stretch. You may look outside it to resolve a pronoun or a term introduced earlier, and say so when you do.",
+    "WHAT YOU HAVE BEEN GIVEN",
+    "- Only the transcript of the stretch they asked about, plus about a minute of run-up before it so that a pronoun or a term has its referent. It is not the whole video.",
+    "- They asked for: {{from}} to {{to}}. Where those are blank, the stretch was taken from where they are paused, {{nowAt}} of {{duration}}.",
+    "- Say at the top which stretch you read, as a range.",
+    "- If something in it plainly refers back to a part of the video you have not been given, say so rather than guessing at it. That is the one thing this cannot show you.",
     "",
     "WHAT THEY WANT: {{depth}}",
-    "- explain: say what is being argued or shown in that stretch, and why it follows from what came before. Lead with one sentence that would let someone who missed it carry on watching.",
-    "- define: pick out the terms, names, products and jargon used in that stretch and define each one briefly, in the sense the speaker is using it.",
-    "- verify: state the claim being made as precisely as the transcript allows, then say what would have to be true for it to hold, and what the speaker does not establish. Be clear about the difference between “this is wrong” and “this is not supported here”.",
-    "- notes: the points made in that stretch, as a short list, each with its timestamp.",
+    "- explain: say what is being argued or shown, and why it follows from what came before. Lead with one sentence that would let someone who missed it carry on watching.",
+    "- define: pick out the terms, names, products and jargon used here and define each one briefly, in the sense the speaker is using it.",
+    "- verify: state the claim as precisely as the transcript allows, then say what would have to be true for it to hold, and what the speaker does not establish. Be clear about the difference between “this is wrong” and “this is not supported here”.",
+    "- notes: the points made, as a short list, each with its timestamp.",
     "",
     "RULES",
-    "- Work only from the transcript. If something is not in it, say so rather than supplying it from general knowledge. A video's transcript has no slides, no diagrams and no code on screen, so if the speaker says “as you can see here”, that is a gap and you should name it.",
+    "- Work only from the transcript below. If something is not in it, say so rather than supplying it from general knowledge.",
+    "- A transcript has no slides, no diagrams and no code on screen, so if the speaker says “as you can see here”, that is a gap and you should name it.",
     "- Auto-generated transcripts have no punctuation and mis-hear names and technical terms. Read through that. Where a word is plainly a mis-transcription, say what you think was meant and mark it as a guess.",
     "- Quote sparingly and exactly, with the timestamp.",
-    "- Do not summarise the whole video. They asked about a stretch of it.",
     "",
     "THEIR QUESTION, if they asked one: {{question}}",
     "Answer it first and directly, before anything else.",
     "",
     "VIDEO: {{title}} — {{channel}}",
     "{{videoUrl}}",
-    "Currently paused at {{nowAt}} of {{duration}}.",
     "",
-    "TRANSCRIPT BEGINS",
+    "TRANSCRIPT OF THE STRETCH",
     "{{transcript}}",
-    "TRANSCRIPT ENDS"
+    "END"
   ]
 }

@@ -39,7 +39,9 @@
   //   5 - `pdf` sources, which read the text of a PDF the panel has parsed (see pdftext.js).
   //   6 - an input may declare `grab`: where to read its value from the page, so a value that is ON the
   //       page does not have to be copied out of it by hand. See readSources below.
-  const ENGINE_VERSION = 6;
+  //   7 - a variable may declare `timeSlice`: keep only the part of a timestamped text between two
+  //       times. See applyTimeSlice.
+  const ENGINE_VERSION = 7;
 
   // Sources that read the page the user is on. A variable built only from these is tied to one site; one with
   // a fallback is not, because it can be filled in by hand anywhere. Reading the URL counts: a rule that pulls
@@ -140,6 +142,87 @@
     if (!isSafeRegex(regex)) throw new Error("regex rejected (invalid, too long, or prone to catastrophic backtracking)");
     const m = new RegExp(regex).exec(text.length > LIMITS.maxRegexInput ? text.slice(0, LIMITS.maxRegexInput) : text);
     return m ? (m[1] !== undefined ? m[1] : m[0]) : "";
+  }
+
+  // ─── Keeping only part of a timestamped text ───────────────────────────────
+  //
+  // A transcript is the case this exists for. A rule that asks about ninety seconds of an eighty-four
+  // minute video was sending all 100,000 characters of it and telling the model which part to read --
+  // which works, and costs about 25,000 tokens a question to have the model do the discarding.
+  //
+  // A regex cannot do this: the bounds come from what the user typed at runtime and a rule's regexes
+  // are fixed strings. So it is a declared property of the variable, resolved like any other.
+  //
+  //   timeSlice: { from, to?, before?, after?, stamp?, separator? }
+  //
+  // `from` and `to` name OTHER VARIABLES rather than carrying times themselves, so all the ordinary
+  // machinery applies to them: an input the user typed, falling back to one read off the page, falling
+  // back to a literal. The rule expresses "where I am now, unless I said otherwise" with sources, and
+  // this just reads the answer.
+
+  const TIME_IN_TEXT = "(\\d{1,2}:\\d{2}(?::\\d{2})?)";
+
+  // "12:34" -> 754. "1:24:35" -> 5075. Anything else -> null, which means "no bound".
+  function toSeconds(text) {
+    // Three digits for the first group: a transcript of a two-hour talk may write 150:00 rather than
+    // 2:30:00, and \d{1,2} would match from the "5" and place it fifty minutes in.
+    const m = /(\d{1,3}):(\d{2})(?::(\d{2}))?/.exec(String(text || ""));
+    if (!m) return null;
+    return m[3] === undefined
+      ? Number(m[1]) * 60 + Number(m[2])
+      : Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+  }
+
+  const asClock = (sec) => {
+    const s = Math.max(0, Math.round(sec));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const r = s % 60;
+    return (h ? `${h}:${String(m).padStart(2, "0")}` : `${m}`) + `:${String(r).padStart(2, "0")}`;
+  };
+
+  // Returns { text, kept, total, from, to } so the caller can report what it did. A chunk with no
+  // readable time inherits the previous chunk's, because a wrapped transcript line is a continuation
+  // of the one above it and dropping it would lose words from the middle of a sentence.
+  function applyTimeSlice(value, cfg, fromText, toText_) {
+    const sep = typeof cfg.separator === "string" && cfg.separator ? cfg.separator : "\n\n";
+    const stampRe = new RegExp(cfg.stamp || TIME_IN_TEXT.replace(/\\\\/g, "\\"));
+    const chunks = String(value || "").split(sep);
+
+    const before = Number.isFinite(Number(cfg.before)) ? Number(cfg.before) : 0;
+    const after = Number.isFinite(Number(cfg.after)) ? Number(cfg.after) : 0;
+
+    let start = toSeconds(fromText);
+    let end = toSeconds(toText_);
+
+    // Only an end given: read from the beginning up to it. Only a start: a window after it, which is
+    // what `after` is for -- without it, "from 12:30" would mean the whole rest of the video.
+    if (start === null && end === null) return { text: value, kept: chunks.length, total: chunks.length, from: null, to: null };
+
+    // Typed the wrong way round, or an end that lands before a start inherited from the player's
+    // clock. Either way the user meant the stretch between the two numbers. Swapped BEFORE the
+    // padding is applied -- doing it after turns a transposed pair into a sliver instead of the
+    // stretch they asked for, which is a subtler wrong answer than an empty one.
+    if (start !== null && end !== null && start > end) { const t = start; start = end; end = t; }
+
+    if (start === null) start = 0;
+    else start = Math.max(0, start - before);
+    if (end === null) end = start + before + (after || 180);
+    else end = end + after;
+
+    let last = null;
+    const kept = [];
+    for (const chunk of chunks) {
+      const m = stampRe.exec(chunk);
+      const at = m ? toSeconds(m[1] !== undefined ? m[1] : m[0]) : null;
+      if (at !== null) last = at;
+      const when = at !== null ? at : last;
+      // A chunk before the first readable timestamp has no time at all; it is page furniture, not
+      // content, so it is left out rather than guessed at.
+      if (when === null) continue;
+      if (when >= start && when <= end) kept.push(chunk);
+    }
+    return { text: kept.join(sep).trim(), kept: kept.length, total: chunks.length, from: start, to: end };
   }
 
   function fillVars(str, ctx) {
@@ -483,6 +566,32 @@
           if (value.trim()) break;
         }
 
+        // THE SLICE HAPPENS BEFORE EVERYTHING ELSE, and before maxChars in particular. Capping first
+        // would keep the first 200,000 characters and then look for a window inside them -- so asking
+        // about minute 70 of a long video would find nothing, having already thrown minute 70 away.
+        const sliceOf = async (text) => {
+          if (!spec.timeSlice || !text.trim()) return text;
+          const cfg = spec.timeSlice;
+          const bound = async (which) => (which ? String(await scope.get(which) || "") : "");
+          const got = applyTimeSlice(text, cfg, await bound(cfg.from), await bound(cfg.to));
+          if (got.from === null && got.to === null) {
+            attempts.push("timeSlice: no bounds given, kept all");
+            return text;
+          }
+          // Said in the attempts log either way: a slice that kept nothing and one that was never
+          // applied look identical in the output, and only one of them is a mistake.
+          attempts.push(`timeSlice ${asClock(got.from)}-${asClock(got.to)}: kept ${got.kept} of ${got.total}`);
+          return got.text;
+        };
+
+        try {
+          value = await sliceOf(value);
+        } catch (e) {
+          // A bad stamp pattern must cost the slice, not the transcript.
+          attempts.push("timeSlice failed");
+          result.errors.push(`${name}: timeSlice failed: ${e.message}`);
+        }
+
         const failed = (what, e) => {
           const msg = `${name}: ${what} failed: ${e.message}`;
           if (!seenErrors.has(msg)) {
@@ -516,7 +625,7 @@
             manual = true;
             attempts.push(`fallback ${String(typed).length} chars`);
             try {
-              value = postProcessManual(String(typed), spec, env);
+              value = postProcessManual(await sliceOf(String(typed)), spec, env);
             } catch (e) {
               // Cannot realistically happen -- postProcessManual drops the only transform that throws -- but
               // a pasted value must never be lost to bookkeeping, so keep it and apply just the length cap.
@@ -758,6 +867,29 @@
         if (spec.transform !== undefined && !TRANSFORMS.includes(spec.transform)) err(`variables.${name}.transform must be one of ${TRANSFORMS.join(", ")}`);
         if (spec.map !== undefined && (!isObj(spec.map) || !Object.values(spec.map).every(v => typeof v === "string"))) err(`variables.${name}.map must map strings to strings`);
         if (spec.maxChars !== undefined && (!Number.isInteger(spec.maxChars) || spec.maxChars < 1)) err(`variables.${name}.maxChars must be a positive integer`);
+        if (spec.timeSlice !== undefined) {
+          const t = spec.timeSlice;
+          const at = `variables.${name}.timeSlice`;
+          if (!isObj(t)) err(`${at} must be an object`);
+          else {
+            Object.keys(t).forEach(k => {
+              if (!["from", "to", "before", "after", "stamp", "separator"].includes(k)) err(`unknown field "${at}.${k}"`);
+            });
+            if (typeof t.from !== "string" || !t.from) err(`${at}.from must name the variable holding the start time`);
+            if (t.to !== undefined && typeof t.to !== "string") err(`${at}.to must name a variable`);
+            ["before", "after"].forEach(k => {
+              if (t[k] !== undefined && (!Number.isInteger(t[k]) || t[k] < 0 || t[k] > 7200)) err(`${at}.${k} must be a whole number of seconds (0-7200)`);
+            });
+            if (t.stamp !== undefined && !isSafeRegex(t.stamp)) err(`${at}.stamp is invalid, too long, or unsafe`);
+            if (t.separator !== undefined && (typeof t.separator !== "string" || !t.separator)) err(`${at}.separator must be a string`);
+            if (Number.isInteger(rule.minEngine) && rule.minEngine < 7) err(`${at} needs minEngine 7 or newer`);
+            // The bounds are variables, so they are part of the dependency graph like anything else.
+            // deps[name] is initialised further down this same loop; a timeSlice is checked before
+            // the sources are, so it creates the list rather than assuming one.
+            deps[name] = deps[name] || [];
+            [t.from, t.to].forEach(d => { if (typeof d === "string" && d) deps[name].push(d); });
+          }
+        }
         if (spec.fallback !== undefined) {
           const fb = spec.fallback;
           if (!isObj(fb)) err(`variables.${name}.fallback must be an object`);
@@ -773,7 +905,7 @@
             if (Number.isInteger(rule.minEngine) && rule.minEngine < 2) err(`variables.${name} has a fallback, so minEngine must be at least 2`);
           }
         }
-        deps[name] = [];
+        deps[name] = deps[name] || [];
         spec.sources.forEach((src, i) => {
           checkSource(src, `variables.${name}.sources[${i}]`, rule, inputKeys, requests, (d) => deps[name].push(d)).forEach(err);
         });
