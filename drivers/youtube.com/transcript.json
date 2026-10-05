@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "youtube.com/transcript",
-  "version": 1,
+  "version": 2,
   "minEngine": 4,
   "name": "Open and read a video's transcript",
-  "description": "YouTube keeps the transcript behind a button, so nothing on the page can read it until something presses that button. This opens the panel and collects every line with its timestamp.",
+  "description": "YouTube keeps the transcript behind a button, and on many layouts behind “...more” first, so nothing on the page can read it until something presses them. This opens the panel and collects every line with its timestamp.",
   "author": "you",
   "domains": [
     "youtube.com",
@@ -32,8 +32,8 @@
     "maxMs": 45000,
     "expand": {
       "selector": "button, [role=\"button\"]",
-      "textMatches": "^\\s*show transcript\\s*$",
-      "maxClicks": 2
+      "textMatches": "^\\s*(\\.\\.\\.more|more|show transcript)\\s*$",
+      "maxClicks": 4
     }
   }
 }

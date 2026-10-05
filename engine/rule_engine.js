@@ -37,7 +37,9 @@
   //   3 - css sources may set `frames: true` to read same-origin iframe documents.
   //   4 - `harvest` sources, which read what a declarative driver collected (see drivers.js, harvest.js).
   //   5 - `pdf` sources, which read the text of a PDF the panel has parsed (see pdftext.js).
-  const ENGINE_VERSION = 5;
+  //   6 - an input may declare `grab`: where to read its value from the page, so a value that is ON the
+  //       page does not have to be copied out of it by hand. See readSources below.
+  const ENGINE_VERSION = 6;
 
   // Sources that read the page the user is on. A variable built only from these is tied to one site; one with
   // a fallback is not, because it can be filled in by hand anywhere. Reading the URL counts: a rule that pulls
@@ -385,6 +387,28 @@
     }
   }
 
+  // A SHORT LIST OF SOURCES, resolved in order, first non-empty wins. This is what a variable does,
+  // minus the transform, the cap and the fallback -- and it is exactly what an input's `grab` needs.
+  //
+  // Exported because the alternative was the panel reaching into resolveSource, or reimplementing the
+  // order-and-first-non-empty rule next to the one here. Two implementations of "try these in order"
+  // is how they come to disagree about what empty means.
+  //
+  // Never throws. A source that fails is skipped, which is the same thing a variable does with it.
+  async function readSources(sources, env) {
+    const scope = { ctx: Object.create(null), get: async () => "" };
+    for (const src of sources || []) {
+      try {
+        const v = toText(await resolveSource(src, scope, { variables: {} }, env, {}));
+        if (v && v.trim()) return v.trim();
+      } catch (e) {
+        // Try the next one. A grab offers several because the first is usually the readable one and
+        // the readable one is usually the one that breaks.
+      }
+    }
+    return "";
+  }
+
   // Resolve every variable of `rule`. Never throws; problems are reported in the result.
   //   values   - visible variables that resolved to text (what gets sent to the prompt)
   //   found    - names of those variables
@@ -563,6 +587,62 @@
   const placeholders = (str) => Array.from(String(str).matchAll(/\{\{(\w+)\}\}/g), m => m[1]);
 
   // Returns a list of problems; an empty list means the rule is well-formed and passes the safety rules.
+  // ONE DEFINITION OF WHAT A SOURCE MAY BE, used by variables and by an input's `grab`.
+  //
+  // These checks were written inline inside the variables loop, which was fine while variables were the
+  // only thing that had sources. A grab has sources too, and a second copy of "is this a valid css
+  // source" is a second opinion that drifts: the day the engine gains a source type, one of the two
+  // copies learns about it.
+  //
+  // `onDep` is how a var or format source reports what it depends on; a grab has no dependency graph to
+  // contribute to, so it passes nothing and those sources are rejected for it below.
+  function checkSource(src, where, rule, inputKeys, requests, onDep) {
+    const errors = [];
+    const err = (m) => errors.push(m);
+    const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+    const dep = typeof onDep === "function" ? onDep : null;
+
+    if (!isObj(src) || !SOURCE_TYPES.includes(src.from)) {
+      err(`${where}.from must be one of ${SOURCE_TYPES.join(", ")}`);
+      return errors;
+    }
+    if (src.regex !== undefined && !isSafeRegex(src.regex)) err(`${where}.regex is invalid, too long, or prone to catastrophic backtracking`);
+    if (src.from === "css" && (typeof src.selector !== "string" || !src.selector || src.selector.length > 300)) err(`${where}.selector is required (max 300 characters)`);
+    if (src.frames !== undefined) {
+      if (src.from !== "css") err(`${where}.frames only applies to css sources`);
+      else if (typeof src.frames !== "boolean") err(`${where}.frames must be true or false`);
+      else if (src.frames && Number.isInteger(rule.minEngine) && rule.minEngine < 3) err(`${where} reads frames, so minEngine must be at least 3`);
+    }
+    if (src.from === "graphql") {
+      if (!isObj(requests) || !requests[src.request]) err(`${where}.request "${src.request}" is not defined in requests`);
+      else if (dep) Object.values(requests[src.request].variables || {}).forEach(v => placeholders(v).forEach(n => dep(n)));
+      if (typeof src.path !== "string" || !src.path) err(`${where}.path is required`);
+    }
+    if (src.from === "var") {
+      if (!dep) err(`${where}: a var source cannot be used here`);
+      else dep(src.name);
+    }
+    if (src.from === "format") {
+      if (typeof src.template !== "string") err(`${where}.template is required`);
+      else if (!dep) err(`${where}: a format source cannot be used here`);
+      else placeholders(src.template).forEach(n => dep(n));
+    }
+    if (src.from === "input" && !inputKeys.includes(src.name)) err(`${where}.name "${src.name}" is not a declared input`);
+    if (src.from === "literal" && typeof src.value !== "string") err(`${where}.value must be a string`);
+    if (src.from === "harvest") {
+      if (typeof src.driver !== "string" || !/^[a-z0-9.-]+\/[a-z0-9-]+$/.test(src.driver)) err(`${where}.driver must be a driver id like "x.com/thread"`);
+      if (Number.isInteger(rule.minEngine) && rule.minEngine < 4) err(`${where} is a harvest source, so minEngine must be at least 4`);
+    }
+    if (src.from === "pdf") {
+      if (src.pages !== undefined) {
+        if (typeof src.pages !== "string") err(`${where}.pages must be a string like "1-20"`);
+        else if (!PAGES_SPEC.test(src.pages)) err(`${where}.pages must look like "3", "2-7", "1-3,9,20-" or "all"`);
+      }
+      if (Number.isInteger(rule.minEngine) && rule.minEngine < 5) err(`${where} is a pdf source, so minEngine must be at least 5`);
+    }
+    return errors;
+  }
+
   function validateRule(input) {
     const errors = [];
     const err = (m) => errors.push(m);
@@ -610,6 +690,46 @@
         if (f.type === "select" && (!Array.isArray(f.options) || !f.options.length || !f.options.every(o => isObj(o) && typeof o.value === "string" && typeof o.label === "string"))) {
           err(`inputs[${f.key}] needs options [{ value, label }]`);
         }
+
+        // GRAB: where this input's value can be read from the page, so a value that is already on the
+        // page is not copied out of it by hand. A grab's sources are ordinary sources and are checked
+        // by the ordinary source validator -- it is the same machinery, not a parallel one.
+        if (f.grab !== undefined) {
+          const g = f.grab;
+          const at = `inputs[${f.key}].grab`;
+          // Read off the rule directly: `requests` and `variables` are declared further down, and a
+          // grab is checked up here because it belongs to the input it is attached to.
+          const reqs = isObj(rule.requests) ? rule.requests : {};
+          if (!isObj(g)) err(`${at} must be an object`);
+          else {
+            Object.keys(g).forEach(k => {
+              if (!["label", "sources", "hover"].includes(k)) err(`unknown field "${at}.${k}"`);
+            });
+            if (g.label !== undefined && (typeof g.label !== "string" || g.label.length > 40)) err(`${at}.label must be a short string`);
+            if (!Array.isArray(g.sources) || !g.sources.length || g.sources.length > 6) err(`${at}.sources must be a list of 1 to 6 sources`);
+            else g.sources.forEach((src, j) => checkSource(src, `${at}.sources[${j}]`, rule, inputKeys, reqs).forEach(err));
+
+            // HOVER: the same read, but taken while the pointer is somewhere rather than now. It is for
+            // a value that only exists under the pointer -- a scrub bar's tooltip is the case this was
+            // built for, where seeking to the end of a range to capture it moves you away from where
+            // you were. `over` is the region that arms it; the sources are read at the click.
+            if (g.hover !== undefined) {
+              const h = g.hover;
+              const hat = `${at}.hover`;
+              if (!isObj(h)) err(`${hat} must be an object`);
+              else {
+                Object.keys(h).forEach(k => {
+                  if (!["label", "over", "sources"].includes(k)) err(`unknown field "${hat}.${k}"`);
+                });
+                if (h.label !== undefined && (typeof h.label !== "string" || h.label.length > 40)) err(`${hat}.label must be a short string`);
+                if (typeof h.over !== "string" || !h.over.trim() || h.over.length > 300) err(`${hat}.over must be a CSS selector for the area to hover over`);
+                if (!Array.isArray(h.sources) || !h.sources.length || h.sources.length > 6) err(`${hat}.sources must be a list of 1 to 6 sources`);
+                else h.sources.forEach((src, j) => checkSource(src, `${hat}.sources[${j}]`, rule, inputKeys, reqs).forEach(err));
+              }
+            }
+            if (Number.isInteger(rule.minEngine) && rule.minEngine < 6) err(`${at} needs minEngine 6 or newer`);
+          }
+        }
       });
     }
 
@@ -655,39 +775,7 @@
         }
         deps[name] = [];
         spec.sources.forEach((src, i) => {
-          const where = `variables.${name}.sources[${i}]`;
-          if (!isObj(src) || !SOURCE_TYPES.includes(src.from)) return err(`${where}.from must be one of ${SOURCE_TYPES.join(", ")}`);
-          if (src.regex !== undefined && !isSafeRegex(src.regex)) err(`${where}.regex is invalid, too long, or unsafe`);
-          if (src.from === "url" && !src.regex) err(`${where}: url sources need a regex`);
-          if (src.from === "css" && (typeof src.selector !== "string" || !src.selector || src.selector.length > 300)) err(`${where}.selector is required (max 300 characters)`);
-          if (src.frames !== undefined) {
-            if (src.from !== "css") err(`${where}.frames only applies to css sources`);
-            else if (typeof src.frames !== "boolean") err(`${where}.frames must be true or false`);
-            else if (src.frames && Number.isInteger(rule.minEngine) && rule.minEngine < 3) err(`${where} reads frames, so minEngine must be at least 3`);
-          }
-          if (src.from === "graphql") {
-            if (!isObj(requests) || !requests[src.request]) err(`${where}.request "${src.request}" is not defined in requests`);
-            else Object.values(requests[src.request].variables || {}).forEach(v => placeholders(v).forEach(n => deps[name].push(n)));
-            if (typeof src.path !== "string" || !src.path) err(`${where}.path is required`);
-          }
-          if (src.from === "var") deps[name].push(src.name);
-          if (src.from === "format") {
-            if (typeof src.template !== "string") err(`${where}.template is required`);
-            else placeholders(src.template).forEach(n => deps[name].push(n));
-          }
-          if (src.from === "input" && !inputKeys.includes(src.name)) err(`${where}.name "${src.name}" is not a declared input`);
-          if (src.from === "literal" && typeof src.value !== "string") err(`${where}.value must be a string`);
-          if (src.from === "harvest") {
-            if (typeof src.driver !== "string" || !/^[a-z0-9.-]+\/[a-z0-9-]+$/.test(src.driver)) err(`${where}.driver must be a driver id like "x.com/thread"`);
-            if (Number.isInteger(rule.minEngine) && rule.minEngine < 4) err(`${where} is a harvest source, so minEngine must be at least 4`);
-          }
-          if (src.from === "pdf") {
-            if (src.pages !== undefined) {
-              if (typeof src.pages !== "string") err(`${where}.pages must be a string like "1-20"`);
-              else if (!PAGES_SPEC.test(src.pages)) err(`${where}.pages must look like "3", "2-7", "1-3,9,20-" or "all"`);
-            }
-            if (Number.isInteger(rule.minEngine) && rule.minEngine < 5) err(`${where} is a pdf source, so minEngine must be at least 5`);
-          }
+          checkSource(src, `variables.${name}.sources[${i}]`, rule, inputKeys, requests, (d) => deps[name].push(d)).forEach(err);
         });
       });
       Object.entries(deps).forEach(([name, list]) => list.forEach(d => {
@@ -758,7 +846,7 @@
   // gains a capability -- which it has done five times. A builder reads these and is right by construction.
   const api = {
     extract, htmlToText, hostMatches, ruleMatchesHost, pathMatches, isCompatible, isPortable,
-    validateRule, normalizeRule, isSafeRegex, isQueryOnly, selectPdfPages, ENGINE_VERSION, LIMITS,
+    validateRule, normalizeRule, isSafeRegex, isQueryOnly, selectPdfPages, readSources, ENGINE_VERSION, LIMITS,
     SOURCE_TYPES, PAGE_SOURCES, TRANSFORMS, INPUT_TYPES, FALLBACK_TYPES
   };
   root.CHRuleEngine = api;

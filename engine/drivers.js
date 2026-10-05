@@ -203,6 +203,22 @@ const CHDrivers = (() => {
     }
   };
 
+  // The driver ITSELF, without the store's bookkeeping.
+  //
+  // install() records where a driver came from and when, by spreading those onto the driver object. That
+  // is convenient for the library, which wants to show both -- and it quietly made every installed
+  // driver unrunnable, because validateDriver whitelists the schema's fields and rightly refuses
+  // anything it does not recognise. The error read "That driver is not valid: unknown field installedAt",
+  // which is true, unhelpful, and describes a file the extension wrote itself.
+  //
+  // The validator stays strict: refusing unknown fields is how a driver cannot smuggle anything past
+  // review. It is the caller's job to hand it a driver rather than a database row.
+  const bare = (driver) => {
+    const out = {};
+    TOP_LEVEL.forEach((k) => { if (driver && driver[k] !== undefined) out[k] = driver[k]; });
+    return out;
+  };
+
   async function install(driver, source) {
     const kept = (await load()).filter((d) => d.id !== driver.id);
     kept.push({ ...driver, source: source || { registry: "pasted" }, installedAt: Date.now() });
@@ -229,7 +245,7 @@ const CHDrivers = (() => {
     return out;
   }
 
-  return { KEY, LIMITS, DEFAULTS, validateDriver, settings, describeDriver, load, install, remove, byId, matchesHost, requiredBy };
+  return { KEY, LIMITS, DEFAULTS, TOP_LEVEL, validateDriver, settings, describeDriver, bare, load, install, remove, byId, matchesHost, requiredBy };
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = CHDrivers;

@@ -168,6 +168,55 @@
               }
             }
           }
+        },
+        "grab": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sources"
+          ],
+          "description": "Where this input's value can be read from the page, so it need not be typed.",
+          "properties": {
+            "label": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "sources": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 6,
+              "items": {
+                "$ref": "#/definitions/source"
+              }
+            },
+            "hover": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "over",
+                "sources"
+              ],
+              "description": "Read it from under the pointer instead, for a value that only exists while hovering.",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                "over": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "sources": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 6,
+                  "items": {
+                    "$ref": "#/definitions/source"
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },
