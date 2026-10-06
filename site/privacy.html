@@ -57,7 +57,7 @@
 
   <h1>Privacy Policy</h1>
   <p class="sub">Context Hypervisor — Prompt Compiler (Chrome extension)</p>
-  <p class="sub">Last updated 5 October 2026</p>
+  <p class="sub">Last updated 6 October 2026</p>
 
   <div class="box">
     <p><strong>The short version.</strong> Everything this extension stores stays on your own computer.
@@ -136,11 +136,19 @@
   happens to it. This extension has no control over, and no visibility into, their handling of it.</p>
 
   <h3>2. A request for the rule catalogue</h3>
-  <p>When you open the rule library, the extension fetches a static JSON catalogue from
-  <code>ahosting.github.io</code>, which is GitHub Pages. This is an ordinary file download. It contains
-  no information about you, the page you are on, or what you have installed. As with any web request,
-  GitHub receives the network-level metadata it would receive for any visit to a web page, such as your
-  IP address; GitHub's privacy statement governs that.</p>
+  <p>When you open the rule library, the extension asks a database hosted at
+  <code>sjbkawuobhgqppwpshpr.supabase.co</code> for the list of available rules, and for a rule's
+  contents when you install one. The request carries no information about you, the page you are on, or
+  what you already have installed &mdash; it is a read of a public list. As with any web request, the
+  host receives the network-level metadata it would receive for any visit to a web page, such as your IP
+  address; Supabase's privacy statement governs that.</p>
+  <p>If you choose to <strong>submit</strong> a rule you have written, that rule is sent to the same
+  database and held for review. That only happens when you ask for it. What is sent is the rule itself
+  &mdash; the selectors and the prompt you wrote &mdash; and nothing else about you or your browsing.
+  A submitted rule is not visible to anyone until it has been reviewed and approved.</p>
+  <p>Some installations may be pointed at a static catalogue file on <code>ahosting.github.io</code>
+  instead. That is an ordinary file download and carries the same amount of information about you:
+  none.</p>
 
   <h3>3. Nothing else</h3>
   <p>There are no analytics, no crash reporting, no advertising, no tracking pixels and no developer
